@@ -16,6 +16,10 @@ __pycache__/
 .venv/
 venv/
 
-# Env
+# Env / credentials
 .env
 .env.local
+*.token
+
+# Local data cache/exports
+/data/
