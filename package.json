@@ -1,0 +1,29 @@
+{
+  "name": "rebooty-ops",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ReBooty Treasures reselling ops app (intake, inventory, eBay sync, dashboard)",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "migrate": "knex --knexfile src/db/knexfile.js migrate:latest",
+    "seed": "knex --knexfile src/db/knexfile.js seed:run"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "knex": "^3.1.0",
+    "multer": "^2.0.1",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "allowScripts": {
+    "sqlite3@6.0.1": true
+  }
+}

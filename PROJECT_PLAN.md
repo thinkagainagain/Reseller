@@ -21,7 +21,7 @@ still open, and the recommended order of operations. Read this fully before writ
 | 2 | eBay API integration (auto-pull inventory + sales) | 🔲 Not started | Phase 1, eBay Dev account |
 | 3 | Tax export system for accountant | 🔲 Partially done (Monthly Tax Summary tab exists; needs polish + PDF export) | Phase 1 |
 | 4 | Written SOP (sourcing → listing → shipping → reconciling) | 🔲 Not started | none, can run in parallel |
-| 5 | Hosting / repo structure / automation | 🔲 In progress (GitHub repo created, local dir set up) | Phase 2 decisions |
+| 5 | Hosting / repo structure / automation | 🔲 In progress (Node/Express/SQLite app scaffolded locally, Intake tool built; not yet deployed to Hostinger) | Phase 2 decisions |
 | 6 | Additional marketplace integrations (Mercari, Poshmark, Depop, Meta, Google Merchant) | 🔲 Not started | Phase 2 as template |
 
 **Recommended build order:** finish Phase 2 (eBay) end-to-end as the reference
@@ -137,20 +137,29 @@ they change often):
 - **Fulfillment API** (`/sell/fulfillment/v1/order`) — orders/sales → maps to Sales Log.
 - Legacy **Trading API** (`GetMyeBaySelling`) is a fallback if REST coverage gaps appear.
 
-### 3.3 Sync architecture (proposed, confirm with user before building)
+### 3.3 Sync architecture (decided — supersedes the original Python/xlsx sketch)
 
-- Python script (`ebay_sync.py`) using `requests` + a small OAuth token manager
-  that refreshes the access token as needed.
-- Writes to either:
-  - (a) the `.xlsx` directly via `openpyxl` (simplest, but file-locking issues if
-    the user has it open), or
-  - (b) an intermediate CSV/SQLite that the spreadsheet or a future web dashboard
-    reads from (more robust, better fits multi-platform scale-up).
-  - **Recommendation:** move to (b) once Mercari/Poshmark/Depop are added — a single
-    source-of-truth database avoids N-way spreadsheet sync conflicts. Flag this
-    decision to the user before Phase 6.
-- Scheduling: cron job on the user's hosting (needs confirmation: does the host
-  support cron/Python, or FTP-only? — **open question, see §6**).
+The project pivoted from "Python script writing into the `.xlsx`" to a
+Node.js/Express web app backed by SQLite, because the actual deliverable is a
+live dashboard + browser-based tools (intake, later others), not just a data
+pipeline. See `src/db/migrations/` for the current schema and `src/routes/`
+for the app structure.
+
+- eBay sync will live as an Express route/service (`src/services/ebaySync.js`,
+  not yet built) using a small OAuth token manager that refreshes the access
+  token as needed — same OAuth mechanics as originally planned in §3.1, just
+  JS instead of Python.
+- Writes to SQLite (`data/rebooty.sqlite3`, gitignored) via Knex — the same
+  database the whole app (intake, inventory, dashboard) reads from. This
+  supersedes the old "(a) direct `.xlsx` write vs (b) intermediate CSV/SQLite"
+  choice in §6; (b) won, and the "intermediate" store is now simply *the*
+  store, since the web dashboard is the primary interface, not the `.xlsx`.
+- Scheduling: cron/Task Scheduler polling every 15-30 min — chosen over a
+  live webhook receiver for lower complexity at this scale (a webhook would
+  need an always-on public HTTPS endpoint with eBay's challenge-response
+  verification; polling needs none of that). **Resolved:** the user has
+  always-on Hostinger Business Premium hosting, which supports Node.js apps
+  via hPanel, so this can run on the host once deployed — not just locally.
 
 ### 3.4 Field mapping (eBay → Sales Log)
 
@@ -183,41 +192,61 @@ Planned sections (draft outline for whoever writes it):
 
 ---
 
-## 5. Repo Structure
+## 5. Repo Structure (current — Node/Express/SQLite app, supersedes the original Python sketch)
 
 ```
 Reseller/
 ├── PROJECT_PLAN.md              <- this file
 ├── README.md                    <- quick-start for humans
 ├── GIT-WORKFLOW.md              <- git workflow how-to
-├── .gitignore                   <- excludes .env, credentials, raw exports
+├── .gitignore                   <- excludes .env, node_modules/, /data/, /public/uploads/
 ├── .env.example                 <- template, no real secrets
+├── package.json
+├── src/
+│   ├── server.js                 <- Express bootstrap (session, view engine, routes)
+│   ├── db/
+│   │   ├── knexfile.js
+│   │   ├── index.js              <- exported knex instance (SQLite)
+│   │   ├── migrations/           <- users, platform_fees, inventory, intake_photos,
+│   │   │                            listing_history, sales_log
+│   │   └── seeds/                <- platform_fees rates, admin user
+│   ├── routes/                   <- auth.js, intake.js, inventory.js (eBay sync route TBD)
+│   ├── middleware/requireAuth.js
+│   ├── lib/                      <- constants.js (dropdown enums), nextSku.js
+│   └── views/                    <- EJS templates
+├── public/
+│   ├── css/, manifest.json       <- PWA manifest for "Add to Home Screen"
+│   └── uploads/                  <- (gitignored) intake photos, {sku}/*.jpg
 ├── spreadsheet/
-│   └── ReBooty_Treasures_Business_Tracker.xlsx
-├── scripts/
-│   ├── ebay_sync.py
-│   ├── oauth_token_manager.py
-│   └── requirements.txt
+│   └── ReBooty_Treasures_Business_Tracker.xlsx  <- original workbook; app is now
+│                                    the primary interface, this stays as reference/export target
+├── scripts/                      <- reserved for one-off/ops scripts, currently empty
 ├── docs/
 │   └── SOP.md                   <- Phase 4 output
-└── data/                        <- (gitignored) local exports/cache if using CSV/SQLite approach
+└── data/                        <- (gitignored) rebooty.sqlite3 lives here
 ```
 
 **Security note for the agent:** eBay Client ID/Secret and refresh tokens must
-never be committed. Confirm `.gitignore` includes `.env`, `*.token`, `/data/` before
-the first commit that touches credentials.
+never be committed. Confirm `.gitignore` includes `.env`, `*.token`, `/data/`,
+and `/public/uploads/` before the first commit that touches credentials.
+
+**Lifecycle note:** `inventory.status` now includes `Intake` as a distinct
+stage from `Death Pile` — items sit in Intake from the moment they're
+photographed until they're actually listed (or diverted to the permanent
+Death Pile for a specific blocker, tracked in `death_pile_reason`). Keeping
+these separate matters for metrics: folding stale Death Pile items into an
+"average days from purchase to listing" number would badly inflate it.
 
 ---
 
 ## 6. Open Questions (resolve with the user before deep implementation)
 
-1. **Hosting capability** — does the user's hosting support cron + Python/PHP
-   execution, or is it FTP/static-file-only? This determines whether sync can run
-   on the host or must run locally on the user's laptop on a schedule.
-2. **Data store long-term** — stay on the `.xlsx` as source of truth, or migrate to
-   SQLite/Postgres once Mercari/Poshmark/Depop/Meta/Google Merchant are all synced?
-   Recommend deciding this before building the second platform integration, to
-   avoid rework.
+1. ~~**Hosting capability**~~ — **Resolved.** User has Hostinger Business
+   Premium (shared hosting), which supports Node.js apps via hPanel. Sync can
+   run on the host, not just locally.
+2. ~~**Data store long-term**~~ — **Resolved.** SQLite via the Node/Express app
+   (see §3.3, §5) is the source of truth going forward; the `.xlsx` is no
+   longer the primary interface.
 3. **Shipping cost capture** — eBay's API doesn't cleanly return what the seller
    paid for a label if purchased outside eBay. Confirm workflow (buy labels through
    eBay so cost is in the API response, or accept a manual entry step).

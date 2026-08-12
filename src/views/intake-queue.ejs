@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Intake Queue</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main>
+    <h1>Intake Queue (<%= items.length %>)</h1>
+    <nav>
+      <a href="/intake">+ New Intake</a>
+      <a href="/inventory">Inventory</a>
+    </nav>
+
+    <% if (items.length === 0) { %>
+      <p>Nothing waiting to be listed right now.</p>
+    <% } %>
+
+    <% items.forEach(function(item) { %>
+      <div class="card">
+        <% if (firstPhotoBySku[item.sku]) { %>
+          <img src="<%= firstPhotoBySku[item.sku] %>" alt="<%= item.sku %>">
+        <% } %>
+        <div class="sku"><%= item.sku %></div>
+        <div>Acquired: <%= item.date_acquired %></div>
+      </div>
+    <% }); %>
+  </main>
+</body>
+</html>

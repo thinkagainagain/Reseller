@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Intake</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main>
+    <h1>Intake a new item</h1>
+    <nav>
+      <a href="/intake/queue">Intake Queue</a>
+      <a href="/inventory">Inventory</a>
+      <form method="POST" action="/logout" style="display:inline"><button type="submit" style="width:auto;margin:0;padding:0;background:none;color:#2b6cb0;font-weight:400;text-decoration:underline;">Log out</button></form>
+    </nav>
+
+    <% if (error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/intake" enctype="multipart/form-data">
+      <label for="photos">Take photo(s) of the item</label>
+      <input type="file" id="photos" name="photos" accept="image/*" capture="environment" multiple required>
+      <button type="submit">Save to Intake</button>
+    </form>
+  </main>
+</body>
+</html>

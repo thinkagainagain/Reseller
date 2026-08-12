@@ -23,3 +23,6 @@ venv/
 
 # Local data cache/exports
 /data/
+
+# Intake photo uploads (local storage, not committed)
+/public/uploads/
