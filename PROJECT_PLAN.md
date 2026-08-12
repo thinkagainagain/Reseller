@@ -246,3 +246,42 @@ the first commit that touches credentials.
    `ReBooty_Treasures_Business_Tracker.xlsx` (or the chosen data store per open
    question #2).
 7. Resolve open question #1 (hosting capability) before building the scheduler.
+
+---
+
+## 8. Future Consideration: Cross-Platform Listing Sync (not scoped yet)
+
+Inspired by tools like Nifty.ai, Vendoo, and List Perfectly: use eBay as the
+source-of-truth inventory and automatically crosslist to Poshmark, Mercari, and
+Depop, delisting everywhere the moment an item sells on any one platform (to
+avoid selling the same physical item twice).
+
+**This is not a natural extension of the Phase 6 marketplace sync work** and
+should not be scoped as "the same pattern as eBay, three more times." The
+blocker is API access, which is fundamentally different per platform:
+
+- **eBay** — genuine public developer API, self-serve registration. This is why
+  Phase 2/6 sync has been straightforward to plan.
+- **Poshmark** — no public third-party seller API as of research done 2026-08-12.
+- **Mercari** — no confirmed public seller API found as of the same research pass.
+- **Depop** — appears to have *some* "official API" now (referenced by Vendoo's
+  blog as of 2026), but it reads as a partner-level integration Vendoo specifically
+  secured, not a self-serve developer signup. Do not assume equivalent access is
+  available to a solo shop without checking directly.
+
+Without official API access, crosslisting/delisting on a platform means
+**browser automation** — a script that logs into the actual website and drives
+the UI. That carries a materially different risk profile than the eBay OAuth
+work: it breaks whenever the site's HTML changes, it typically runs against
+those platforms' bot/automation terms of service, and it risks account
+suspension if detected. This is not a decision to make casually or bundle
+silently into Phase 6.
+
+**If/when this gets picked up:**
+1. Check each platform's current developer/partner terms directly first — this
+   space shifts (Depop's API status changed recently) and stale assumptions here
+   should not be trusted.
+2. Decide per-platform: pursue official/partner API access, accept
+   automation risk with eyes open, or leave that platform as manual-entry-only.
+3. Treat this as its own phase with its own risk sign-off from the user, not an
+   auto-included part of Phase 6.
