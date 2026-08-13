@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^13.0.3",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^4.19.2",
@@ -22,6 +21,9 @@
     "knex": "^3.1.0",
     "multer": "^2.0.1",
     "pg": "^8.13.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^13.0.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"
