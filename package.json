@@ -8,7 +8,8 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "migrate": "knex --knexfile src/db/knexfile.js migrate:latest",
-    "seed": "knex --knexfile src/db/knexfile.js seed:run"
+    "seed": "knex --knexfile src/db/knexfile.js seed:run",
+    "sync:ebay": "node src/scripts/syncEbay.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -16,14 +17,15 @@
     "ejs": "^3.1.10",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
+    "fast-xml-parser": "^5.10.1",
+    "better-sqlite3": "^13.0.3",
     "knex": "^3.1.0",
-    "multer": "^2.0.1",
-    "sqlite3": "^6.0.1"
+    "multer": "^2.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"
   },
   "allowScripts": {
-    "sqlite3@6.0.1": true
+    "better-sqlite3@13.0.3": true
   }
 }

@@ -4,7 +4,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 const dbFile = process.env.DB_FILE || './data/rebooty.sqlite3';
 
 module.exports = {
-  client: 'sqlite3',
+  client: 'better-sqlite3',
   connection: {
     filename: path.resolve(__dirname, '..', '..', dbFile),
   },
