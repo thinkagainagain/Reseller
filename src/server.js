@@ -3,6 +3,7 @@ const path = require('path');
 const express = require('express');
 const session = require('express-session');
 
+const db = require('./db');
 const requireAuth = require('./middleware/requireAuth');
 const authRoutes = require('./routes/auth');
 const intakeRoutes = require('./routes/intake');
@@ -32,6 +33,15 @@ app.use(requireAuth, inventoryRoutes);
 app.get('/', (req, res) => res.redirect('/intake/queue'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`ReBooty Ops running at http://localhost:${PORT}`);
-});
+
+db.migrate
+  .latest()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`ReBooty Ops running at http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to run database migrations on startup:', err);
+    process.exit(1);
+  });
