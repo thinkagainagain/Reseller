@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Death Pile</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main>
+    <h1>Death Pile (<%= items.length %>)</h1>
+    <%- include('partials/nav') %>
+
+    <% if (items.length === 0) { %>
+      <p>Nothing in the Death Pile right now.</p>
+    <% } else { %>
+      <p>$<%= totalTiedUp.toFixed(2) %> tied up in the Death Pile</p>
+    <% } %>
+
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Item</th>
+          <th>Cost</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% items.forEach(function(item) { %>
+          <tr onclick="location.href='/inventory/<%= item.sku %>/edit?from=death-pile'" style="cursor:pointer;">
+            <td><%= item.sku %></td>
+            <td><%= item.item_name || '—' %></td>
+            <td><%= item.purchase_cost ? '$' + Number(item.purchase_cost).toFixed(2) : '—' %></td>
+            <td><%= item.death_pile_reason || '—' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>

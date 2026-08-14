@@ -5,8 +5,20 @@ const constants = require('../lib/constants');
 const router = express.Router();
 
 router.get('/inventory', async (req, res) => {
-  const items = await db('inventory').orderBy('date_acquired', 'desc');
+  const items = await db('inventory')
+    .whereNotIn('status', ['Intake', 'Death Pile'])
+    .orderBy('date_acquired', 'desc');
   res.render('inventory', { items });
+});
+
+router.get('/inventory/death-pile', async (req, res) => {
+  const items = await db('inventory')
+    .where({ status: 'Death Pile' })
+    .orderBy('date_acquired', 'asc');
+
+  const totalTiedUp = items.reduce((sum, item) => sum + Number(item.purchase_cost || 0), 0);
+
+  res.render('death-pile', { items, totalTiedUp });
 });
 
 router.get('/inventory/:sku/edit', async (req, res) => {
@@ -14,7 +26,11 @@ router.get('/inventory/:sku/edit', async (req, res) => {
   if (!item) {
     return res.status(404).send('SKU not found');
   }
-  res.render('inventory-edit', { item, constants, returnTo: req.query.from === 'queue' ? 'queue' : 'inventory' });
+
+  const returnMap = { queue: 'queue', 'death-pile': 'death-pile' };
+  const returnTo = returnMap[req.query.from] || 'inventory';
+
+  res.render('inventory-edit', { item, constants, returnTo });
 });
 
 router.post('/inventory/:sku/edit', async (req, res) => {
@@ -43,7 +59,11 @@ router.post('/inventory/:sku/edit', async (req, res) => {
       updated_at: db.fn.now(),
     });
 
-  res.redirect(return_to === 'queue' ? '/intake/queue' : '/inventory');
+  const redirectMap = {
+    queue: '/intake/queue',
+    'death-pile': '/inventory/death-pile',
+  };
+  res.redirect(redirectMap[return_to] || '/inventory');
 });
 
 module.exports = router;

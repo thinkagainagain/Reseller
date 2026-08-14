@@ -9,10 +9,7 @@
 <body>
   <main>
     <h1><%= item.sku %></h1>
-    <nav>
-      <a href="/intake/queue">Intake Queue</a>
-      <a href="/inventory">Inventory</a>
-    </nav>
+    <%- include('partials/nav') %>
 
     <form method="POST" action="/inventory/<%= item.sku %>/edit">
       <input type="hidden" name="return_to" value="<%= returnTo %>">
@@ -84,7 +81,10 @@
 
       <button type="submit">Save</button>
     </form>
-    <a class="button-secondary" href="<%= returnTo === 'queue' ? '/intake/queue' : '/inventory' %>">Cancel</a>
+    <%
+      const cancelHref = { queue: '/intake/queue', 'death-pile': '/inventory/death-pile' }[returnTo] || '/inventory';
+    %>
+    <a class="button-secondary" href="<%= cancelHref %>">Cancel</a>
   </main>
 </body>
 </html>

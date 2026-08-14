@@ -8,6 +8,7 @@ const requireAuth = require('./middleware/requireAuth');
 const authRoutes = require('./routes/auth');
 const intakeRoutes = require('./routes/intake');
 const inventoryRoutes = require('./routes/inventory');
+const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
 
@@ -29,8 +30,9 @@ app.use(
 app.use(authRoutes);
 app.use(requireAuth, intakeRoutes);
 app.use(requireAuth, inventoryRoutes);
+app.use(requireAuth, dashboardRoutes);
 
-app.get('/', (req, res) => res.redirect('/intake/queue'));
+app.get('/', (req, res) => res.redirect('/dashboard'));
 
 const PORT = process.env.PORT || 3000;
 

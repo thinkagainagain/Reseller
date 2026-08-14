@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main>
+    <h1>Dashboard</h1>
+    <%- include('partials/nav') %>
+
+    <div class="card">
+      <div><strong>Active listings:</strong> <%= activeCount %></div>
+    </div>
+
+    <div class="card">
+      <div><strong>Waiting to list:</strong> <%= waitingCount %></div>
+      <div>$<%= waitingTiedUp.toFixed(2) %> tied up</div>
+    </div>
+
+    <div class="card">
+      <div><strong>Death Pile:</strong> <%= deathPileCount %></div>
+      <div>$<%= deathPileTiedUp.toFixed(2) %> tied up</div>
+    </div>
+
+    <div class="card">
+      <div><strong>Sold (all-time):</strong> <%= soldCount %></div>
+    </div>
+
+    <h1 style="margin-top:2rem;">Recent Sales</h1>
+    <% if (recentSales.length === 0) { %>
+      <p>No sales yet.</p>
+    <% } %>
+    <% recentSales.forEach(function(sale) { %>
+      <div class="card">
+        <div class="sku"><%= sale.sku %></div>
+        <div><%= sale.item_name || '—' %></div>
+        <div><%= sale.platform %> · $<%= Number(sale.sale_price).toFixed(2) %> · <%= sale.sale_date %></div>
+      </div>
+    <% }); %>
+  </main>
+</body>
+</html>

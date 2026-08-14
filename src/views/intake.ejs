@@ -10,11 +10,7 @@
 <body>
   <main>
     <h1>Intake a new item</h1>
-    <nav>
-      <a href="/intake/queue">Intake Queue</a>
-      <a href="/inventory">Inventory</a>
-      <form method="POST" action="/logout" style="display:inline"><button type="submit" style="width:auto;margin:0;padding:0;background:none;color:#2b6cb0;font-weight:400;text-decoration:underline;">Log out</button></form>
-    </nav>
+    <%- include('partials/nav') %>
 
     <% if (error) { %>
       <div class="error"><%= error %></div>
