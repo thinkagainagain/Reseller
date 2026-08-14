@@ -22,17 +22,19 @@
 
     <% items.forEach(function(item) { %>
       <div class="card">
-        <% if (firstPhotoBySku[item.sku]) { %>
-          <img src="<%= firstPhotoBySku[item.sku] %>" alt="<%= item.sku %>">
-        <% } %>
-        <div class="sku"><%= item.sku %></div>
-        <% if (item.item_name) { %>
-          <div><%= item.item_name %></div>
-        <% } %>
-        <% if (item.purchase_cost) { %>
-          <div>Cost: $<%= Number(item.purchase_cost).toFixed(2) %></div>
-        <% } %>
-        <div>Acquired: <%= item.date_acquired %></div>
+        <a href="/inventory/<%= item.sku %>/edit?from=queue">
+          <% if (firstPhotoBySku[item.sku]) { %>
+            <img src="<%= firstPhotoBySku[item.sku] %>" alt="<%= item.sku %>">
+          <% } %>
+          <div class="sku"><%= item.sku %></div>
+          <% if (item.item_name) { %>
+            <div><%= item.item_name %></div>
+          <% } %>
+          <% if (item.purchase_cost) { %>
+            <div>Cost: $<%= Number(item.purchase_cost).toFixed(2) %></div>
+          <% } %>
+          <div>Acquired: <%= item.date_acquired %></div>
+        </a>
       </div>
     <% }); %>
   </main>

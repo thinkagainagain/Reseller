@@ -25,11 +25,11 @@
       </thead>
       <tbody>
         <% items.forEach(function(item) { %>
-          <tr>
+          <tr onclick="location.href='/inventory/<%= item.sku %>/edit'" style="cursor:pointer;">
             <td><%= item.sku %></td>
             <td><%= item.item_name || '—' %></td>
             <td class="status-<%= item.status.replace(' ', '-') %>"><%= item.status %></td>
-            <td><%= item.date_acquired %></td>
+            <td><%= item.date_acquired || '—' %></td>
           </tr>
         <% }); %>
       </tbody>

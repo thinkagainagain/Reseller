@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Edit <%= item.sku %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main>
+    <h1><%= item.sku %></h1>
+    <nav>
+      <a href="/intake/queue">Intake Queue</a>
+      <a href="/inventory">Inventory</a>
+    </nav>
+
+    <form method="POST" action="/inventory/<%= item.sku %>/edit">
+      <input type="hidden" name="return_to" value="<%= returnTo %>">
+
+      <label for="item_name">Title</label>
+      <input type="text" id="item_name" name="item_name" value="<%= item.item_name || '' %>">
+
+      <label for="status">Status</label>
+      <select id="status" name="status">
+        <% constants.STATUSES.forEach(function(s) { %>
+          <option value="<%= s %>" <%= item.status === s ? 'selected' : '' %>><%= s %></option>
+        <% }); %>
+      </select>
+
+      <label for="category">Category</label>
+      <select id="category" name="category">
+        <option value="">—</option>
+        <% constants.CATEGORIES.forEach(function(c) { %>
+          <option value="<%= c %>" <%= item.category === c ? 'selected' : '' %>><%= c %></option>
+        <% }); %>
+      </select>
+
+      <label for="source">Source</label>
+      <select id="source" name="source">
+        <option value="">—</option>
+        <% constants.SOURCES.forEach(function(s) { %>
+          <option value="<%= s %>" <%= item.source === s ? 'selected' : '' %>><%= s %></option>
+        <% }); %>
+      </select>
+
+      <label for="condition">Condition</label>
+      <select id="condition" name="condition">
+        <option value="">—</option>
+        <% constants.CONDITIONS.forEach(function(c) { %>
+          <option value="<%= c %>" <%= item.condition === c ? 'selected' : '' %>><%= c %></option>
+        <% }); %>
+      </select>
+
+      <label for="purchase_cost">Cost of goods</label>
+      <input type="number" id="purchase_cost" name="purchase_cost" step="0.01" min="0" inputmode="decimal" value="<%= item.purchase_cost ?? '' %>">
+
+      <label for="list_price">List price</label>
+      <input type="number" id="list_price" name="list_price" step="0.01" min="0" inputmode="decimal" value="<%= item.list_price ?? '' %>">
+
+      <label for="bin_location">Bin location</label>
+      <input type="text" id="bin_location" name="bin_location" value="<%= item.bin_location || '' %>">
+
+      <label for="date_acquired">Date acquired</label>
+      <input type="date" id="date_acquired" name="date_acquired" value="<%= item.date_acquired || '' %>">
+
+      <label for="death_pile_reason">Death Pile reason</label>
+      <select id="death_pile_reason" name="death_pile_reason">
+        <option value="">—</option>
+        <% constants.DEATH_PILE_REASONS.forEach(function(r) { %>
+          <option value="<%= r %>" <%= item.death_pile_reason === r ? 'selected' : '' %>><%= r %></option>
+        <% }); %>
+      </select>
+
+      <label for="death_pile_action_plan">Death Pile action plan</label>
+      <select id="death_pile_action_plan" name="death_pile_action_plan">
+        <option value="">—</option>
+        <% constants.DEATH_PILE_ACTION_PLANS.forEach(function(a) { %>
+          <option value="<%= a %>" <%= item.death_pile_action_plan === a ? 'selected' : '' %>><%= a %></option>
+        <% }); %>
+      </select>
+
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes"><%= item.notes || '' %></textarea>
+
+      <button type="submit">Save</button>
+    </form>
+    <a class="button-secondary" href="<%= returnTo === 'queue' ? '/intake/queue' : '/inventory' %>">Cancel</a>
+  </main>
+</body>
+</html>
