@@ -18,17 +18,40 @@ async function syncActiveListings() {
 
   let created = 0;
   let updated = 0;
+  let matchedBySku = 0;
 
   for (const listing of listings) {
-    const existing = await db('inventory').where({ ebay_item_id: listing.itemId }).first();
+    // Match by our own SKU first (set via eBay's "Custom Label" field when
+    // you manually list an item you already ran through Intake), so an item
+    // already tracked as Waiting to List gets updated in place instead of
+    // spawning a duplicate row. Falls back to eBay's Item ID for listings
+    // we've already synced before.
+    let existing = null;
+
+    if (listing.sku) {
+      existing = await db('inventory').where({ sku: listing.sku }).first();
+      if (existing) matchedBySku += 1;
+    }
+
+    if (!existing) {
+      existing = await db('inventory').where({ ebay_item_id: listing.itemId }).first();
+    }
 
     if (existing) {
-      await db('inventory').where({ sku: existing.sku }).update({
-        item_name: listing.title,
-        list_price: listing.price,
-        date_listed: toDateOnly(listing.startTime) || existing.date_listed,
-        updated_at: db.fn.now(),
-      });
+      await db('inventory')
+        .where({ sku: existing.sku })
+        .update({
+          item_name: listing.title,
+          list_price: listing.price,
+          status: 'Active',
+          ebay_item_id: listing.itemId,
+          // first_listed_date is set once and never overwritten -- it's the
+          // "time to list" anchor, so a relist under a new Item ID must not
+          // reset it.
+          first_listed_date: existing.first_listed_date || toDateOnly(listing.startTime),
+          date_listed: toDateOnly(listing.startTime) || existing.date_listed,
+          updated_at: db.fn.now(),
+        });
       updated += 1;
     } else {
       const sku = await nextSku(db);
@@ -46,7 +69,7 @@ async function syncActiveListings() {
     }
   }
 
-  return { totalListings: listings.length, created, updated };
+  return { totalListings: listings.length, created, updated, matchedBySku };
 }
 
 async function fetchRecentOrders(accessToken) {
@@ -88,7 +111,15 @@ async function syncSoldOrders() {
       const itemId = String(lineItem.legacyItemId || '');
       if (!itemId) continue;
 
-      let inventoryRow = await db('inventory').where({ ebay_item_id: itemId }).first();
+      const lineItemSku = lineItem.sku ? String(lineItem.sku).trim() : null;
+
+      let inventoryRow = null;
+      if (lineItemSku) {
+        inventoryRow = await db('inventory').where({ sku: lineItemSku }).first();
+      }
+      if (!inventoryRow) {
+        inventoryRow = await db('inventory').where({ ebay_item_id: itemId }).first();
+      }
 
       if (!inventoryRow) {
         const sku = await nextSku(db);
@@ -101,8 +132,12 @@ async function syncSoldOrders() {
         });
         inventoryRow = { sku };
         backfilledInventory += 1;
-      } else if (inventoryRow.status !== 'Sold') {
-        await db('inventory').where({ sku: inventoryRow.sku }).update({ status: 'Sold', updated_at: db.fn.now() });
+      } else if (inventoryRow.status !== 'Sold' || inventoryRow.ebay_item_id !== itemId) {
+        await db('inventory').where({ sku: inventoryRow.sku }).update({
+          status: 'Sold',
+          ebay_item_id: itemId,
+          updated_at: db.fn.now(),
+        });
       }
 
       const salePrice = Number(lineItem.total?.value ?? 0);

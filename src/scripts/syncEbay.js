@@ -4,7 +4,8 @@ const { runSync } = require('../services/ebaySync');
 runSync()
   .then(({ listings, orders }) => {
     console.log(
-      `Listings: ${listings.totalListings} active (${listings.created} new, ${listings.updated} updated). ` +
+      `Listings: ${listings.totalListings} active (${listings.created} new, ${listings.updated} updated, ` +
+        `${listings.matchedBySku} matched by SKU). ` +
         `Orders: ${orders.totalOrders} checked (${orders.newSales} new sales, ${orders.updatedSales} updated, ` +
         `${orders.backfilledInventory} inventory rows backfilled).`
     );

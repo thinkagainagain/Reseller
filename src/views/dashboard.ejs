@@ -29,6 +29,14 @@
       <div><strong>Sold (all-time):</strong> <%= soldCount %></div>
     </div>
 
+    <h1 style="margin-top:2rem;">Listing Velocity</h1>
+
+    <div class="card">
+      <div><strong>Listed today:</strong> <%= listedToday %></div>
+      <div><strong>Listed this week:</strong> <%= listedThisWeek %></div>
+      <div><strong>Avg. days to list:</strong> <%= avgDaysToList === null ? '—' : avgDaysToList.toFixed(1) %></div>
+    </div>
+
     <h1 style="margin-top:2rem;">Recent Sales</h1>
     <% if (recentSales.length === 0) { %>
       <p>No sales yet.</p>

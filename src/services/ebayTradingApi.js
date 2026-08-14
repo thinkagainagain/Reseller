@@ -26,6 +26,7 @@ function asArray(value) {
 function normalizeItem(item) {
   return {
     itemId: String(item.ItemID),
+    sku: item.SKU ? String(item.SKU).trim() : null,
     title: item.Title,
     price: Number(item.SellingStatus?.CurrentPrice ?? item.BuyItNowPrice ?? 0),
     quantityAvailable: Number(item.QuantityAvailable ?? item.Quantity ?? 1),
