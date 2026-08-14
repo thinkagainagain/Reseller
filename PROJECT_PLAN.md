@@ -237,6 +237,14 @@ Death Pile for a specific blocker, tracked in `death_pile_reason`). Keeping
 these separate matters for metrics: folding stale Death Pile items into an
 "average days from purchase to listing" number would badly inflate it.
 
+**Future: two-factor authentication (not scoped yet).** User wants TOTP
+(authenticator-app style 6-digit code) added to the login flow eventually —
+not urgent, current single-admin session login is considered sufficient for
+now. When picked up: add a `totp_secret` column to `users`, a library like
+`otplib` for code generation/verification, and a setup step to show the QR
+code once. Additive change, doesn't require touching existing auth logic
+beyond `routes/auth.js`.
+
 ---
 
 ## 6. Open Questions (resolve with the user before deep implementation)

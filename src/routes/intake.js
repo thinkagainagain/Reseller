@@ -32,9 +32,17 @@ router.post('/intake', upload.array('photos', 10), async (req, res) => {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const itemName = req.body.item_name?.trim() || null;
+  const purchaseCost = req.body.purchase_cost ? Number(req.body.purchase_cost) : null;
 
   await db.transaction(async (trx) => {
-    await trx('inventory').insert({ sku, date_acquired: today, status: 'Intake' });
+    await trx('inventory').insert({
+      sku,
+      date_acquired: today,
+      status: 'Intake',
+      item_name: itemName,
+      purchase_cost: purchaseCost,
+    });
     await trx('intake_photos').insert(photoRows);
   });
 
@@ -58,7 +66,9 @@ router.get('/intake/queue', async (req, res) => {
     }
   }
 
-  res.render('intake-queue', { items, firstPhotoBySku });
+  const totalTiedUp = items.reduce((sum, item) => sum + Number(item.purchase_cost || 0), 0);
+
+  res.render('intake-queue', { items, firstPhotoBySku, totalTiedUp });
 });
 
 module.exports = router;

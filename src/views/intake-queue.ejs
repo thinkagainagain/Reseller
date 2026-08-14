@@ -16,6 +16,8 @@
 
     <% if (items.length === 0) { %>
       <p>Nothing waiting to be listed right now.</p>
+    <% } else { %>
+      <p>$<%= totalTiedUp.toFixed(2) %> tied up waiting to list</p>
     <% } %>
 
     <% items.forEach(function(item) { %>
@@ -24,6 +26,12 @@
           <img src="<%= firstPhotoBySku[item.sku] %>" alt="<%= item.sku %>">
         <% } %>
         <div class="sku"><%= item.sku %></div>
+        <% if (item.item_name) { %>
+          <div><%= item.item_name %></div>
+        <% } %>
+        <% if (item.purchase_cost) { %>
+          <div>Cost: $<%= Number(item.purchase_cost).toFixed(2) %></div>
+        <% } %>
         <div>Acquired: <%= item.date_acquired %></div>
       </div>
     <% }); %>
