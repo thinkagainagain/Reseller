@@ -12,6 +12,7 @@ router.post('/sync/run', async (req, res) => {
     const { listings, orders } = await runSync();
     res.render('sync', { result: { listings, orders }, error: null });
   } catch (err) {
+    console.error('Sync failed:', err);
     res.render('sync', { result: null, error: err.message });
   }
 });

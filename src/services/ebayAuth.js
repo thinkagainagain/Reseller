@@ -27,6 +27,10 @@ async function getAccessToken(scopes) {
 
   if (!res.ok) {
     const text = await res.text();
+    console.error(
+      `eBay token refresh failed. Node ${process.version}, status ${res.status}, ` +
+        `server header: ${res.headers.get('server')}, x-ebay-c-request-id: ${res.headers.get('x-ebay-c-request-id')}`
+    );
     throw new Error(`eBay token refresh failed (${res.status}): ${text}`);
   }
 
