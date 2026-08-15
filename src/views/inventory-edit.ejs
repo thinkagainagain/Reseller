@@ -82,7 +82,7 @@
       <button type="submit">Save</button>
     </form>
     <%
-      const cancelHref = { queue: '/intake/queue', 'death-pile': '/inventory/death-pile' }[returnTo] || '/inventory';
+      const cancelHref = { queue: '/intake/queue', 'death-pile': '/inventory/death-pile', sold: '/inventory/sold' }[returnTo] || '/inventory';
     %>
     <a class="button-secondary" href="<%= cancelHref %>">Cancel</a>
 

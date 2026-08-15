@@ -9,9 +9,25 @@ const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
 
 router.get('/inventory', async (req, res) => {
   const items = await db('inventory')
-    .whereNotIn('status', ['Intake', 'Death Pile'])
+    .where({ status: 'Active' })
     .orderBy('date_acquired', 'desc');
   res.render('inventory', { items });
+});
+
+router.get('/inventory/sold', async (req, res) => {
+  const items = await db('inventory')
+    .leftJoin('sales_log', 'inventory.sku', 'sales_log.sku')
+    .where('inventory.status', 'Sold')
+    .select(
+      'inventory.sku',
+      'inventory.item_name',
+      'inventory.bin_location',
+      'sales_log.sale_price',
+      'sales_log.sale_date',
+      'sales_log.platform'
+    )
+    .orderBy('sales_log.sale_date', 'desc');
+  res.render('sold', { items });
 });
 
 router.get('/inventory/death-pile', async (req, res) => {
@@ -30,7 +46,7 @@ router.get('/inventory/:sku/edit', async (req, res) => {
     return res.status(404).send('SKU not found');
   }
 
-  const returnMap = { queue: 'queue', 'death-pile': 'death-pile' };
+  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
   const returnTo = returnMap[req.query.from] || 'inventory';
 
   res.render('inventory-edit', { item, constants, returnTo });
@@ -65,6 +81,7 @@ router.post('/inventory/:sku/edit', async (req, res) => {
   const redirectMap = {
     queue: '/intake/queue',
     'death-pile': '/inventory/death-pile',
+    sold: '/inventory/sold',
   };
   res.redirect(redirectMap[return_to] || '/inventory');
 });
@@ -83,6 +100,7 @@ router.post('/inventory/:sku/delete', async (req, res) => {
   const redirectMap = {
     queue: '/intake/queue',
     'death-pile': '/inventory/death-pile',
+    sold: '/inventory/sold',
   };
   res.redirect(redirectMap[return_to] || '/inventory');
 });

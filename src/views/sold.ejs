@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ReBooty Ops — Inventory</title>
+  <title>ReBooty Ops — Sold</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <main class="wide">
-    <h1>Inventory — Active (<%= items.length %>)</h1>
+    <h1>Sold (<%= items.length %>)</h1>
     <%- include('partials/nav') %>
 
     <div class="table-scroll">
@@ -18,18 +18,20 @@
             <th>SKU</th>
             <th>Item</th>
             <th>Bin/Loc</th>
-            <th>List Price</th>
-            <th>Acquired</th>
+            <th>Sale Price</th>
+            <th>Platform</th>
+            <th>Sale Date</th>
           </tr>
         </thead>
         <tbody>
           <% items.forEach(function(item) { %>
-            <tr onclick="location.href='/inventory/<%= item.sku %>/edit'" style="cursor:pointer;">
+            <tr onclick="location.href='/inventory/<%= item.sku %>/edit?from=sold'" style="cursor:pointer;">
               <td><%= item.sku %></td>
               <td><%= item.item_name || '—' %></td>
               <td><%= item.bin_location || '—' %></td>
-              <td><%= item.list_price ? '$' + Number(item.list_price).toFixed(2) : '—' %></td>
-              <td><%= item.date_acquired || '—' %></td>
+              <td><%= item.sale_price ? '$' + Number(item.sale_price).toFixed(2) : '—' %></td>
+              <td><%= item.platform || '—' %></td>
+              <td><%= item.sale_date || '—' %></td>
             </tr>
           <% }); %>
         </tbody>
