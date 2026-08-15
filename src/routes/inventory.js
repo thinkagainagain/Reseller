@@ -1,8 +1,11 @@
 const express = require('express');
+const fs = require('fs/promises');
+const path = require('path');
 const db = require('../db');
 const constants = require('../lib/constants');
 
 const router = express.Router();
+const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
 
 router.get('/inventory', async (req, res) => {
   const items = await db('inventory')
@@ -58,6 +61,24 @@ router.post('/inventory/:sku/edit', async (req, res) => {
       notes: notes?.trim() || null,
       updated_at: db.fn.now(),
     });
+
+  const redirectMap = {
+    queue: '/intake/queue',
+    'death-pile': '/inventory/death-pile',
+  };
+  res.redirect(redirectMap[return_to] || '/inventory');
+});
+
+router.post('/inventory/:sku/delete', async (req, res) => {
+  const { sku } = req.params;
+  const { return_to } = req.body;
+
+  await db.transaction(async (trx) => {
+    await trx('intake_photos').where({ sku }).del();
+    await trx('inventory').where({ sku }).del();
+  });
+
+  await fs.rm(path.join(UPLOADS_ROOT, sku), { recursive: true, force: true }).catch(() => {});
 
   const redirectMap = {
     queue: '/intake/queue',

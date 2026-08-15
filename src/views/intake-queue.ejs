@@ -32,6 +32,10 @@
           <% } %>
           <div>Acquired: <%= item.date_acquired %></div>
         </a>
+        <form method="POST" action="/inventory/<%= item.sku %>/delete" onsubmit="return confirm('Delete <%= item.sku %>? This cannot be undone.');">
+          <input type="hidden" name="return_to" value="queue">
+          <button type="submit" class="button-secondary" style="border-color:#c53030;color:#c53030;margin-top:0.5rem;">Delete</button>
+        </form>
       </div>
     <% }); %>
   </main>
