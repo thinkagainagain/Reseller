@@ -19,6 +19,7 @@ async function syncActiveListings() {
   let created = 0;
   let updated = 0;
   let matchedBySku = 0;
+  let binLocationBackfilled = 0;
 
   for (const listing of listings) {
     // Match by our own SKU first (set via eBay's "Custom Label" field when
@@ -50,6 +51,7 @@ async function syncActiveListings() {
       // Never overwrite a bin_location you've already filled in by hand.
       const shouldBackfillBinLocation =
         !matchedViaSku && !existing.bin_location && listing.sku && listing.sku !== existing.sku;
+      if (shouldBackfillBinLocation) binLocationBackfilled += 1;
 
       await db('inventory')
         .where({ sku: existing.sku })
@@ -84,11 +86,12 @@ async function syncActiveListings() {
         // permanent identifier.
         bin_location: listing.sku || null,
       });
+      if (listing.sku) binLocationBackfilled += 1;
       created += 1;
     }
   }
 
-  return { totalListings: listings.length, created, updated, matchedBySku };
+  return { totalListings: listings.length, created, updated, matchedBySku, binLocationBackfilled };
 }
 
 async function fetchRecentOrders(accessToken) {

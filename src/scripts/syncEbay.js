@@ -5,7 +5,7 @@ runSync()
   .then(({ listings, orders }) => {
     console.log(
       `Listings: ${listings.totalListings} active (${listings.created} new, ${listings.updated} updated, ` +
-        `${listings.matchedBySku} matched by SKU). ` +
+        `${listings.matchedBySku} matched by SKU, ${listings.binLocationBackfilled} bin/loc backfilled). ` +
         `Orders: ${orders.totalOrders} checked (${orders.newSales} new sales, ${orders.updatedSales} updated, ` +
         `${orders.backfilledInventory} inventory rows backfilled).`
     );
