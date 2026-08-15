@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const intakeRoutes = require('./routes/intake');
 const inventoryRoutes = require('./routes/inventory');
 const dashboardRoutes = require('./routes/dashboard');
+const syncRoutes = require('./routes/sync');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use(authRoutes);
 app.use(requireAuth, intakeRoutes);
 app.use(requireAuth, inventoryRoutes);
 app.use(requireAuth, dashboardRoutes);
+app.use(requireAuth, syncRoutes);
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 

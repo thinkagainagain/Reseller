@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — eBay Sync</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main>
+    <h1>eBay Sync</h1>
+    <%- include('partials/nav') %>
+
+    <p>Pulls your current eBay listings and recent orders into the app. This can take a
+      minute or two for a full sync — the page will just sit and load until it's done,
+      that's normal.</p>
+
+    <form method="POST" action="/sync/run">
+      <button type="submit">Run Sync Now</button>
+    </form>
+
+    <% if (error) { %>
+      <div class="error" style="margin-top:1.5rem;">Sync failed: <%= error %></div>
+    <% } %>
+
+    <% if (result) { %>
+      <div class="card" style="margin-top:1.5rem;">
+        <strong>Listings</strong>
+        <div><%= result.listings.totalListings %> active checked</div>
+        <div><%= result.listings.created %> new</div>
+        <div><%= result.listings.updated %> updated</div>
+        <div><%= result.listings.matchedBySku %> matched by SKU</div>
+        <div><%= result.listings.binLocationBackfilled %> bin/loc backfilled</div>
+      </div>
+      <div class="card">
+        <strong>Orders</strong>
+        <div><%= result.orders.totalOrders %> checked</div>
+        <div><%= result.orders.newSales %> new sales</div>
+        <div><%= result.orders.updatedSales %> updated</div>
+        <div><%= result.orders.backfilledInventory %> inventory rows backfilled</div>
+      </div>
+    <% } %>
+  </main>
+</body>
+</html>
