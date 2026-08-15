@@ -27,10 +27,14 @@ async function syncActiveListings() {
     // spawning a duplicate row. Falls back to eBay's Item ID for listings
     // we've already synced before.
     let existing = null;
+    let matchedViaSku = false;
 
     if (listing.sku) {
       existing = await db('inventory').where({ sku: listing.sku }).first();
-      if (existing) matchedBySku += 1;
+      if (existing) {
+        matchedBySku += 1;
+        matchedViaSku = true;
+      }
     }
 
     if (!existing) {
@@ -38,6 +42,15 @@ async function syncActiveListings() {
     }
 
     if (existing) {
+      // If this item was only found via Item ID (not SKU), eBay's Custom
+      // Label still holds whatever was there before this app renumbered
+      // anything -- for legacy listings that's the old location code you
+      // used to store there. Preserve it in bin_location (once) instead of
+      // letting it disappear once we eventually push a real RT-XXXX SKU up.
+      // Never overwrite a bin_location you've already filled in by hand.
+      const shouldBackfillBinLocation =
+        !matchedViaSku && !existing.bin_location && listing.sku && listing.sku !== existing.sku;
+
       await db('inventory')
         .where({ sku: existing.sku })
         .update({
@@ -50,6 +63,7 @@ async function syncActiveListings() {
           // reset it.
           first_listed_date: existing.first_listed_date || toDateOnly(listing.startTime),
           date_listed: toDateOnly(listing.startTime) || existing.date_listed,
+          bin_location: shouldBackfillBinLocation ? listing.sku : existing.bin_location,
           updated_at: db.fn.now(),
         });
       updated += 1;
@@ -64,6 +78,11 @@ async function syncActiveListings() {
         first_listed_date: toDateOnly(listing.startTime),
         date_listed: toDateOnly(listing.startTime),
         date_acquired: null,
+        // eBay's existing Custom Label wasn't ours -- it's the seller's old
+        // location code from before this app existed. Keep it as a bin
+        // location rather than discarding it; our own sku above is the new
+        // permanent identifier.
+        bin_location: listing.sku || null,
       });
       created += 1;
     }

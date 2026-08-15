@@ -16,6 +16,7 @@
         <tr>
           <th>SKU</th>
           <th>Item</th>
+          <th>Bin/Loc</th>
           <th>Status</th>
           <th>List Price</th>
           <th>Acquired</th>
@@ -26,6 +27,7 @@
           <tr onclick="location.href='/inventory/<%= item.sku %>/edit'" style="cursor:pointer;">
             <td><%= item.sku %></td>
             <td><%= item.item_name || '—' %></td>
+            <td><%= item.bin_location || '—' %></td>
             <td class="status-<%= item.status.replace(' ', '-') %>"><%= item.status %></td>
             <td><%= item.list_price ? '$' + Number(item.list_price).toFixed(2) : '—' %></td>
             <td><%= item.date_acquired || '—' %></td>
