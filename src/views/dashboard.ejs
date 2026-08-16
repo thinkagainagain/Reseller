@@ -37,6 +37,28 @@
       <div><strong>Avg. days to list:</strong> <%= avgDaysToList === null ? '—' : avgDaysToList.toFixed(1) %></div>
     </div>
 
+    <h1 style="margin-top:2rem;">Profit by Month (last 90 days)</h1>
+    <% if (monthlyProfit.length === 0) { %>
+      <p>No sales in this window yet.</p>
+    <% } %>
+    <% monthlyProfit.forEach(function(m) { %>
+      <div class="card">
+        <div><strong><%= m.label %></strong></div>
+        <div>Revenue: $<%= m.revenue.toFixed(2) %> · Profit: $<%= m.profit.toFixed(2) %> · Margin: <%= m.marginPct.toFixed(1) %>% · <%= m.count %> sale<%= m.count === 1 ? '' : 's' %></div>
+      </div>
+    <% }); %>
+
+    <h1 style="margin-top:2rem;">Profit by Platform (last 90 days)</h1>
+    <% if (platformProfit.length === 0) { %>
+      <p>No sales in this window yet.</p>
+    <% } %>
+    <% platformProfit.forEach(function(p) { %>
+      <div class="card">
+        <div><strong><%= p.label %></strong></div>
+        <div>Revenue: $<%= p.revenue.toFixed(2) %> · Profit: $<%= p.profit.toFixed(2) %> · Margin: <%= p.marginPct.toFixed(1) %>% · <%= p.count %> sale<%= p.count === 1 ? '' : 's' %></div>
+      </div>
+    <% }); %>
+
     <h1 style="margin-top:2rem;">Recent Sales</h1>
     <% if (recentSales.length === 0) { %>
       <p>No sales yet.</p>
@@ -46,6 +68,7 @@
         <div class="sku"><%= sale.sku %></div>
         <div><%= sale.item_name || '—' %></div>
         <div><%= sale.platform %> · $<%= Number(sale.sale_price).toFixed(2) %> · <%= sale.sale_date %></div>
+        <div>Profit: $<%= sale.profit.toFixed(2) %> (<%= sale.marginPct.toFixed(1) %>%)</div>
       </div>
     <% }); %>
   </main>

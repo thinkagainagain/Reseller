@@ -1,10 +1,40 @@
 const express = require('express');
 const db = require('../db');
+const { computeProfit } = require('../lib/profit');
 
 const router = express.Router();
 
+const PROFIT_WINDOW_DAYS = 90;
+
 function toDateOnly(date) {
   return date.toISOString().slice(0, 10);
+}
+
+function monthLabel(dateStr) {
+  const [year, month] = dateStr.split('-');
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function rollUp(rows, keyFn) {
+  const buckets = new Map();
+
+  for (const row of rows) {
+    const key = keyFn(row);
+    if (!buckets.has(key)) {
+      buckets.set(key, { key, revenue: 0, profit: 0, count: 0 });
+    }
+    const bucket = buckets.get(key);
+    const { revenue, profit } = computeProfit(row);
+    bucket.revenue += revenue;
+    bucket.profit += profit;
+    bucket.count += 1;
+  }
+
+  return Array.from(buckets.values()).map((bucket) => ({
+    ...bucket,
+    marginPct: bucket.revenue > 0 ? (bucket.profit / bucket.revenue) * 100 : 0,
+  }));
 }
 
 router.get('/dashboard', async (req, res) => {
@@ -15,11 +45,35 @@ router.get('/dashboard', async (req, res) => {
     db('inventory').where({ status: 'Sold' }).count('* as count').first(),
   ]);
 
-  const recentSales = await db('sales_log')
+  const saleSelect = [
+    'sales_log.sku', 'inventory.item_name', 'sales_log.platform', 'sales_log.sale_date',
+    'sales_log.sale_price', 'sales_log.shipping_charged', 'sales_log.shipping_cost',
+    'sales_log.other_fees', 'inventory.purchase_cost', 'platform_fees.fee_percent', 'platform_fees.flat_fee',
+  ];
+
+  const recentSalesRaw = await db('sales_log')
     .join('inventory', 'sales_log.sku', 'inventory.sku')
-    .select('sales_log.sku', 'inventory.item_name', 'sales_log.platform', 'sales_log.sale_date', 'sales_log.sale_price')
+    .join('platform_fees', 'sales_log.platform', 'platform_fees.platform')
+    .select(saleSelect)
     .orderBy('sales_log.sale_date', 'desc')
     .limit(10);
+
+  const recentSales = recentSalesRaw.map((sale) => ({ ...sale, ...computeProfit(sale) }));
+
+  const profitWindowStart = toDateOnly(new Date(Date.now() - PROFIT_WINDOW_DAYS * 24 * 60 * 60 * 1000));
+  const profitWindowSales = await db('sales_log')
+    .join('inventory', 'sales_log.sku', 'inventory.sku')
+    .join('platform_fees', 'sales_log.platform', 'platform_fees.platform')
+    .select(saleSelect)
+    .where('sales_log.sale_date', '>=', profitWindowStart);
+
+  const monthlyProfit = rollUp(profitWindowSales, (row) => row.sale_date.slice(0, 7))
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((bucket) => ({ ...bucket, label: monthLabel(bucket.key) }));
+
+  const platformProfit = rollUp(profitWindowSales, (row) => row.platform)
+    .sort((a, b) => b.profit - a.profit)
+    .map((bucket) => ({ ...bucket, label: bucket.key }));
 
   const today = toDateOnly(new Date());
   const weekAgo = toDateOnly(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
@@ -50,6 +104,8 @@ router.get('/dashboard', async (req, res) => {
     deathPileTiedUp: Number(deathPile.tiedUp || 0),
     soldCount: Number(sold.count),
     recentSales,
+    monthlyProfit,
+    platformProfit,
     listedToday: Number(listedToday.count),
     listedThisWeek: Number(listedThisWeek.count),
     avgDaysToList,
