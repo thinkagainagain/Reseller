@@ -7,59 +7,80 @@
   <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
 </head>
 <body>
-  <main>
+  <main class="wide">
     <h1>Dashboard</h1>
     <%- include('partials/nav') %>
 
-    <div class="card">
-      <div><strong>Active listings:</strong> <%= activeCount %></div>
-    </div>
-
-    <div class="card">
-      <div><strong>Waiting to list:</strong> <%= waitingCount %></div>
-      <div>$<%= waitingTiedUp.toFixed(2) %> tied up</div>
-    </div>
-
-    <div class="card">
-      <div><strong>Death Pile:</strong> <%= deathPileCount %></div>
-      <div>$<%= deathPileTiedUp.toFixed(2) %> tied up</div>
-    </div>
-
-    <div class="card">
-      <div><strong>Sold (all-time):</strong> <%= soldCount %></div>
-    </div>
-
-    <h1 style="margin-top:2rem;">Listing Velocity</h1>
-
-    <div class="card">
-      <div><strong>Listed today:</strong> <%= listedToday %></div>
-      <div><strong>Listed this week:</strong> <%= listedThisWeek %></div>
-      <div><strong>Avg. days to list:</strong> <%= avgDaysToList === null ? '—' : avgDaysToList.toFixed(1) %></div>
-    </div>
-
-    <h1 style="margin-top:2rem;">Profit by Month (last 90 days)</h1>
-    <% if (monthlyProfit.length === 0) { %>
-      <p>No sales in this window yet.</p>
-    <% } %>
-    <% monthlyProfit.forEach(function(m) { %>
-      <div class="card">
-        <div><strong><%= m.label %></strong></div>
-        <div>Revenue: $<%= m.revenue.toFixed(2) %> · Profit: $<%= m.profit.toFixed(2) %> · Margin: <%= m.marginPct.toFixed(1) %>% · <%= m.count %> sale<%= m.count === 1 ? '' : 's' %></div>
+    <div class="stat-grid">
+      <div class="card stat-card">
+        <div class="stat-label">Active Listings</div>
+        <div class="stat-value"><%= activeCount %></div>
       </div>
-    <% }); %>
-
-    <h1 style="margin-top:2rem;">Profit by Platform (last 90 days)</h1>
-    <% if (platformProfit.length === 0) { %>
-      <p>No sales in this window yet.</p>
-    <% } %>
-    <% platformProfit.forEach(function(p) { %>
-      <div class="card">
-        <div><strong><%= p.label %></strong></div>
-        <div>Revenue: $<%= p.revenue.toFixed(2) %> · Profit: $<%= p.profit.toFixed(2) %> · Margin: <%= p.marginPct.toFixed(1) %>% · <%= p.count %> sale<%= p.count === 1 ? '' : 's' %></div>
+      <div class="card stat-card">
+        <div class="stat-label">Waiting to List</div>
+        <div class="stat-value"><%= waitingCount %></div>
+        <div class="stat-sub">$<%= waitingTiedUp.toFixed(2) %> tied up</div>
       </div>
-    <% }); %>
+      <div class="card stat-card">
+        <div class="stat-label">Death Pile</div>
+        <div class="stat-value"><%= deathPileCount %></div>
+        <div class="stat-sub">$<%= deathPileTiedUp.toFixed(2) %> tied up</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Sold (all-time)</div>
+        <div class="stat-value"><%= soldCount %></div>
+      </div>
+    </div>
 
-    <h1 style="margin-top:2rem;">Recent Sales</h1>
+    <h2 class="section-heading">Listing Velocity</h2>
+    <div class="stat-grid">
+      <div class="card stat-card">
+        <div class="stat-label">Listed Today</div>
+        <div class="stat-value"><%= listedToday %></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Listed This Week</div>
+        <div class="stat-value"><%= listedThisWeek %></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Avg. Days to List</div>
+        <div class="stat-value"><%= avgDaysToList === null ? '—' : avgDaysToList.toFixed(1) %></div>
+      </div>
+    </div>
+
+    <h2 class="section-heading">Profit (last 90 days)</h2>
+    <div class="chart-grid">
+      <div class="card chart-card">
+        <div class="chart-card-title">By Platform</div>
+        <% if (platformProfit.length === 0) { %>
+          <p>No sales in this window yet.</p>
+        <% } else { %>
+          <canvas id="platformChart"></canvas>
+          <% platformProfit.forEach(function(p) { %>
+            <div class="breakdown-row">
+              <span><%= p.label %></span>
+              <span>$<%= p.profit.toFixed(2) %> · <%= p.marginPct.toFixed(1) %>% · <%= p.count %></span>
+            </div>
+          <% }); %>
+        <% } %>
+      </div>
+      <div class="card chart-card">
+        <div class="chart-card-title">By Month</div>
+        <% if (monthlyProfit.length === 0) { %>
+          <p>No sales in this window yet.</p>
+        <% } else { %>
+          <canvas id="monthChart"></canvas>
+          <% monthlyProfit.forEach(function(m) { %>
+            <div class="breakdown-row">
+              <span><%= m.label %></span>
+              <span>$<%= m.profit.toFixed(2) %> · <%= m.marginPct.toFixed(1) %>% · <%= m.count %></span>
+            </div>
+          <% }); %>
+        <% } %>
+      </div>
+    </div>
+
+    <h2 class="section-heading">Recent Sales</h2>
     <% if (recentSales.length === 0) { %>
       <p>No sales yet.</p>
     <% } %>
@@ -72,5 +93,42 @@
       </div>
     <% }); %>
   </main>
+
+  <% if (platformProfit.length > 0 || monthlyProfit.length > 0) { %>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script>
+      const platformData = <%- JSON.stringify(platformProfit) %>;
+      const monthlyData = <%- JSON.stringify(monthlyProfit) %>;
+      const palette = ['#2b6cb0', '#2f855a', '#b7791f', '#c53030', '#6b46c1', '#0d9488', '#dd6b20', '#718096'];
+
+      if (platformData.length > 0) {
+        new Chart(document.getElementById('platformChart'), {
+          type: 'doughnut',
+          data: {
+            labels: platformData.map((p) => p.label),
+            datasets: [{
+              data: platformData.map((p) => p.profit),
+              backgroundColor: palette,
+            }],
+          },
+          options: { plugins: { legend: { position: 'bottom' } } },
+        });
+      }
+
+      if (monthlyData.length > 0) {
+        new Chart(document.getElementById('monthChart'), {
+          type: 'bar',
+          data: {
+            labels: monthlyData.map((m) => m.label),
+            datasets: [
+              { label: 'Revenue', data: monthlyData.map((m) => m.revenue), backgroundColor: '#cbd5e0' },
+              { label: 'Profit', data: monthlyData.map((m) => m.profit), backgroundColor: '#2b6cb0' },
+            ],
+          },
+          options: { plugins: { legend: { position: 'bottom' } } },
+        });
+      }
+    </script>
+  <% } %>
 </body>
 </html>
