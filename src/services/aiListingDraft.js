@@ -2,11 +2,11 @@ const fs = require('fs/promises');
 const path = require('path');
 const db = require('../db');
 const { CATEGORIES, CONDITIONS } = require('../lib/constants');
+const { UPLOADS_ROOT } = require('../lib/uploadsDir');
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 const MODEL = 'claude-haiku-4-5-20251001';
-const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
 
 const MIME_BY_EXT = {
   '.jpg': 'image/jpeg',

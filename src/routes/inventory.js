@@ -4,9 +4,9 @@ const path = require('path');
 const db = require('../db');
 const constants = require('../lib/constants');
 const { generateListingDraft } = require('../services/aiListingDraft');
+const { UPLOADS_ROOT } = require('../lib/uploadsDir');
 
 const router = express.Router();
-const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
 
 router.get('/inventory', async (req, res) => {
   const items = await db('inventory')

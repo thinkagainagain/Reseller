@@ -13,6 +13,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const syncRoutes = require('./routes/sync');
 const salesRoutes = require('./routes/sales');
 const skuExportRoutes = require('./routes/skuExport');
+const { UPLOADS_ROOT } = require('./lib/uploadsDir');
 
 const app = express();
 
@@ -26,6 +27,10 @@ app.locals.cssVersion = fs.statSync(path.join(__dirname, '..', 'public', 'css', 
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
+// Served separately from UPLOADS_ROOT (which lives outside the app's own
+// source tree in production) rather than as part of public/ -- see
+// src/lib/uploadsDir.js for why.
+app.use('/uploads', express.static(UPLOADS_ROOT));
 
 app.use(
   session({

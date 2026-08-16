@@ -4,11 +4,10 @@ const fs = require('fs/promises');
 const path = require('path');
 const db = require('../db');
 const nextSku = require('../lib/nextSku');
+const { UPLOADS_ROOT } = require('../lib/uploadsDir');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
-
-const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
 
 router.get('/intake', (req, res) => {
   res.render('intake', { error: null });
