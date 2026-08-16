@@ -77,4 +77,41 @@ async function getActiveListings(accessToken) {
   return allItems;
 }
 
-module.exports = { getActiveListings };
+// Sets only the Custom Label (SKU) field on an existing listing, leaving
+// everything else (price, policies, etc.) untouched. Confirmed working via
+// live test: Ack comes back "Warning" (a generic "you didn't include business
+// policy IDs" notice, not an error) rather than "Success", so Warning is
+// treated as an accepted outcome here, not a failure.
+async function reviseSku(accessToken, itemId, sku) {
+  const body = `<?xml version="1.0" encoding="utf-8"?>
+<ReviseFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <Item>
+    <ItemID>${itemId}</ItemID>
+    <SKU>${sku}</SKU>
+  </Item>
+</ReviseFixedPriceItemRequest>`;
+
+  const res = await fetch(TRADING_API_URL, {
+    method: 'POST',
+    headers: {
+      'X-EBAY-API-COMPATIBILITY-LEVEL': '1155',
+      'X-EBAY-API-CALL-NAME': 'ReviseFixedPriceItem',
+      'X-EBAY-API-SITEID': '0',
+      'X-EBAY-API-IAF-TOKEN': accessToken,
+      'Content-Type': 'text/xml',
+    },
+    body,
+  });
+
+  const xml = await res.text();
+  const parsed = parser.parse(xml);
+  const response = parsed.ReviseFixedPriceItemResponse;
+
+  if (!response || response.Ack === 'Failure') {
+    throw new Error(`ReviseFixedPriceItem failed for ${itemId}: ${xml.slice(0, 800)}`);
+  }
+
+  return { ack: response.Ack };
+}
+
+module.exports = { getActiveListings, reviseSku };
