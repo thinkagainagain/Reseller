@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — SKU Export</title>
+  <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
+</head>
+<body>
+  <main>
+    <h1>Push SKUs to eBay</h1>
+    <%- include('partials/nav') %>
+
+    <div class="card">
+      <p>This gives you a simple file mapping each active eBay Item ID to its new
+        <strong>RT-####</strong> SKU (<%= count %> items). It's not the actual eBay
+        upload file -- eBay's File Exchange format is specific to your account, so
+        build the upload from eBay's own download rather than a from-scratch file.</p>
+
+      <p><strong>Steps:</strong></p>
+      <ol style="padding-left:1.25rem;">
+        <li>In eBay Seller Hub, go to File Exchange &rarr; Download &rarr; download your
+          active listings report as a CSV.</li>
+        <li>Download the mapping file below.</li>
+        <li>In a spreadsheet, use a lookup (VLOOKUP/XLOOKUP on Item ID) to fill the
+          downloaded file's <strong>Custom Label</strong> column from the mapping
+          file's SKU column.</li>
+        <li>Set the <strong>Action</strong> column to <code>Revise</code> for those rows.</li>
+        <li>Upload the edited file back through File Exchange &rarr; Upload.</li>
+      </ol>
+
+      <p>This only covers Active listings -- Sold/ended items aren't included since
+        eBay won't let you revise an ended listing.</p>
+    </div>
+
+    <a class="button-secondary" href="/sku-export/download">Download SKU Mapping (CSV)</a>
+  </main>
+</body>
+</html>

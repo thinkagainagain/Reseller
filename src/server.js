@@ -12,6 +12,7 @@ const inventoryRoutes = require('./routes/inventory');
 const dashboardRoutes = require('./routes/dashboard');
 const syncRoutes = require('./routes/sync');
 const salesRoutes = require('./routes/sales');
+const skuExportRoutes = require('./routes/skuExport');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use(requireAuth, inventoryRoutes);
 app.use(requireAuth, dashboardRoutes);
 app.use(requireAuth, syncRoutes);
 app.use(requireAuth, salesRoutes);
+app.use(requireAuth, skuExportRoutes);
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
