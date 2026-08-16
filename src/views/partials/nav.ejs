@@ -1,6 +1,7 @@
 <nav>
-  <button type="button" class="nav-toggle" onclick="document.getElementById('nav-links').classList.toggle('open')" aria-label="Menu">&#9776;</button>
-  <div class="nav-links" id="nav-links">
+  <input type="checkbox" id="nav-toggle-checkbox" class="nav-toggle-checkbox">
+  <label for="nav-toggle-checkbox" class="nav-toggle" aria-label="Menu">&#9776;</label>
+  <div class="nav-links">
     <a href="/dashboard">Dashboard</a>
     <a href="/intake">Intake</a>
     <a href="/intake/queue">Waiting to List</a>

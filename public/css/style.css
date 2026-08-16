@@ -36,8 +36,16 @@ nav {
   font-size: 0.9rem;
 }
 
+.nav-toggle-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
 .nav-toggle {
-  display: block;
+  display: inline-block;
   width: auto;
   margin: 0 0 0.5rem;
   padding: 0.5rem 0.75rem;
@@ -46,6 +54,7 @@ nav {
   border: 1px solid #ccc;
   border-radius: 6px;
   font-size: 1.1rem;
+  font-weight: 400;
   line-height: 1;
   cursor: pointer;
 }
@@ -61,7 +70,7 @@ nav {
   padding: 0.75rem;
 }
 
-.nav-links.open {
+.nav-toggle-checkbox:checked ~ .nav-links {
   display: flex;
 }
 
