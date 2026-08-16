@@ -11,11 +11,29 @@
     <h1><%= item.sku %></h1>
     <%- include('partials/nav') %>
 
+    <% if (error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+
+    <% if (aiDraft) { %>
+      <div class="card" style="color:#b7791f;font-weight:600;">AI-suggested — not yet saved. Review and click Save.</div>
+    <% } %>
+
+    <% if (hasPhoto) { %>
+      <form method="POST" action="/inventory/<%= item.sku %>/generate-ai" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
+        <input type="hidden" name="return_to" value="<%= returnTo %>">
+        <button type="submit" class="button-secondary">Generate with AI</button>
+      </form>
+    <% } %>
+
     <form method="POST" action="/inventory/<%= item.sku %>/edit">
       <input type="hidden" name="return_to" value="<%= returnTo %>">
 
       <label for="item_name">Title</label>
       <input type="text" id="item_name" name="item_name" value="<%= item.item_name || '' %>">
+
+      <label for="description">Description</label>
+      <textarea id="description" name="description"><%= item.description || '' %></textarea>
 
       <label for="status">Status</label>
       <select id="status" name="status">

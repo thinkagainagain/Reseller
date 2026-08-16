@@ -3,6 +3,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const db = require('../db');
 const constants = require('../lib/constants');
+const { generateListingDraft } = require('../services/aiListingDraft');
 
 const router = express.Router();
 const UPLOADS_ROOT = path.join(__dirname, '..', '..', 'public', 'uploads');
@@ -49,7 +50,9 @@ router.get('/inventory/:sku/edit', async (req, res) => {
   const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
   const returnTo = returnMap[req.query.from] || 'inventory';
 
-  res.render('inventory-edit', { item, constants, returnTo });
+  const hasPhoto = Boolean(await db('intake_photos').where({ sku: item.sku }).first());
+
+  res.render('inventory-edit', { item, constants, returnTo, hasPhoto, aiDraft: false, error: null });
 });
 
 router.post('/inventory/:sku/edit', async (req, res) => {
@@ -57,7 +60,7 @@ router.post('/inventory/:sku/edit', async (req, res) => {
   const {
     item_name, category, source, condition, purchase_cost, list_price,
     bin_location, status, death_pile_reason, death_pile_action_plan,
-    date_acquired, notes, return_to,
+    date_acquired, notes, description, return_to,
   } = req.body;
 
   await db('inventory')
@@ -75,6 +78,7 @@ router.post('/inventory/:sku/edit', async (req, res) => {
       death_pile_action_plan: death_pile_action_plan || null,
       date_acquired: date_acquired || null,
       notes: notes?.trim() || null,
+      description: description?.trim() || null,
       updated_at: db.fn.now(),
     });
 
@@ -84,6 +88,41 @@ router.post('/inventory/:sku/edit', async (req, res) => {
     sold: '/inventory/sold',
   };
   res.redirect(redirectMap[return_to] || '/inventory');
+});
+
+router.post('/inventory/:sku/generate-ai', async (req, res) => {
+  const { sku } = req.params;
+  const { return_to } = req.body;
+
+  const item = await db('inventory').where({ sku }).first();
+  if (!item) {
+    return res.status(404).send('SKU not found');
+  }
+
+  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
+  const returnTo = returnMap[return_to] || 'inventory';
+  const hasPhoto = Boolean(await db('intake_photos').where({ sku }).first());
+
+  try {
+    const draft = await generateListingDraft(sku);
+    res.render('inventory-edit', {
+      item: { ...item, ...draft },
+      constants,
+      returnTo,
+      hasPhoto,
+      aiDraft: true,
+      error: null,
+    });
+  } catch (err) {
+    res.render('inventory-edit', {
+      item,
+      constants,
+      returnTo,
+      hasPhoto,
+      aiDraft: false,
+      error: err.message,
+    });
+  }
 });
 
 router.post('/inventory/:sku/delete', async (req, res) => {
