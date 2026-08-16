@@ -1,4 +1,5 @@
 require('dotenv').config();
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
@@ -16,6 +17,11 @@ const app = express();
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+// Cache-busting query string for /css/style.css -- without this, browsers
+// and Hostinger's CDN can keep serving a stale cached copy after a deploy
+// even though the HTML (rendered fresh per-request) is already current.
+app.locals.cssVersion = fs.statSync(path.join(__dirname, '..', 'public', 'css', 'style.css')).mtimeMs;
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
