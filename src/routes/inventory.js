@@ -106,10 +106,10 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
   try {
     const draft = await generateListingDraft(sku);
     const notes = item.notes
-      ? `${draft.research_notes}\n\n---\n\n${item.notes}`
-      : draft.research_notes;
+      ? `${draft.notes}\n\n---\n\n${item.notes}`
+      : draft.notes;
     res.render('inventory-edit', {
-      item: { ...item, category: draft.category, condition: draft.condition, notes },
+      item: { ...item, item_name: draft.title, category: draft.category, condition: draft.condition, notes },
       constants,
       returnTo,
       hasPhoto,
