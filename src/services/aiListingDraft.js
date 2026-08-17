@@ -33,22 +33,31 @@ async function generateListingDraft(sku) {
   const mimeType = MIME_BY_EXT[ext] || 'image/jpeg';
   const base64Data = fileBuffer.toString('base64');
 
-  const tool = {
+  const draftListingTool = {
     name: 'draft_listing',
-    description: 'Draft resale marketplace listing fields for the item shown in the photo.',
+    description: 'Submit the final, fact-checked resale marketplace listing fields for the item shown in the photo. Call this exactly once, as your last step, after identifying the item and researching it.',
     input_schema: {
       type: 'object',
       properties: {
-        title: { type: 'string', description: 'A concise resale listing title, under 80 characters.' },
+        title: {
+          type: 'string',
+          description: 'An SEO-optimized eBay listing title, under 80 characters, built from verified facts about the exact item (not a visual description).',
+        },
         description: {
           type: 'string',
-          description: 'A short marketplace listing description of the item, naturally mentioning color, brand, and material if visible.',
+          description: 'A factual marketplace listing description built from verified research about the exact item -- real specs/plot/edition/details, not a description of what it looks like in the photo.',
         },
         category: { type: 'string', enum: CATEGORIES },
         condition: { type: 'string', enum: CONDITIONS },
       },
       required: ['title', 'description', 'category', 'condition'],
     },
+  };
+
+  const webSearchTool = {
+    type: 'web_search_20250305',
+    name: 'web_search',
+    max_uses: 5,
   };
 
   const res = await fetch(ANTHROPIC_URL, {
@@ -60,23 +69,26 @@ async function generateListingDraft(sku) {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048,
       system:
-        'You are a resale listing assistant. Look at the photo of a secondhand item and draft ' +
-        'marketplace listing fields for it. Fold in color, apparent brand, and material naturally ' +
-        'into the title and description rather than listing them separately. Pick the single best ' +
-        'matching category and condition from the provided lists.',
+        'You are a resale listing research assistant. Look at the photo of a secondhand item and ' +
+        'identify exactly what it is -- read any visible title, brand, model number, barcode, or ' +
+        'other distinguishing text in the image. Then use web search to find and verify the real, ' +
+        'exact item (e.g. the precise book/movie/album/product listing) so the description is built ' +
+        'from real facts (correct full title, format, edition, year, plot/specs as applicable) rather ' +
+        'than a guess based on appearance. Only fall back to a visual description if the item genuinely ' +
+        'cannot be identified after searching. Write the title as SEO-optimized eBay copy under 80 ' +
+        'characters. When you are done researching, call draft_listing exactly once with your final answer.',
       messages: [
         {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Data } },
-            { type: 'text', text: 'Draft listing fields for this item.' },
+            { type: 'text', text: 'Identify this exact item, research it, and draft listing fields for it.' },
           ],
         },
       ],
-      tools: [tool],
-      tool_choice: { type: 'tool', name: 'draft_listing' },
+      tools: [webSearchTool, draftListingTool],
     }),
   });
 
@@ -86,9 +98,10 @@ async function generateListingDraft(sku) {
   }
 
   const data = await res.json();
-  const toolUse = data.content?.find((block) => block.type === 'tool_use');
+  const toolUse = data.content?.find((block) => block.type === 'tool_use' && block.name === 'draft_listing');
   if (!toolUse) {
-    throw new Error('Claude did not return a structured draft.');
+    const explanation = data.content?.find((block) => block.type === 'text')?.text;
+    throw new Error(explanation || 'Claude did not return a structured draft.');
   }
 
   return toolUse.input;
