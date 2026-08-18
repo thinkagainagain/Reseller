@@ -13,6 +13,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const syncRoutes = require('./routes/sync');
 const salesRoutes = require('./routes/sales');
 const skuExportRoutes = require('./routes/skuExport');
+const readyToPublishRoutes = require('./routes/readyToPublish');
 const { UPLOADS_ROOT } = require('./lib/uploadsDir');
 
 const app = express();
@@ -48,6 +49,7 @@ app.use(requireAuth, dashboardRoutes);
 app.use(requireAuth, syncRoutes);
 app.use(requireAuth, salesRoutes);
 app.use(requireAuth, skuExportRoutes);
+app.use(requireAuth, readyToPublishRoutes);
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 

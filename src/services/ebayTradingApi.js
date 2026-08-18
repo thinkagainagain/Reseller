@@ -114,4 +114,83 @@ async function reviseSku(accessToken, itemId, sku) {
   return { ack: response.Ack };
 }
 
-module.exports = { getActiveListings, reviseSku };
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// Creates a new fixed-price listing scheduled to go live at a future date
+// (rather than immediately), so it's a real, native, editable Seller Hub
+// listing during the hold -- see the "Ready to Publish" plan for why this
+// call (not the modern Inventory API) is used.
+function buildAddFixedPriceItemRequest(listing) {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<AddFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <Item>
+    <Title>${escapeXml(listing.title)}</Title>
+    <Description><![CDATA[${listing.description}]]></Description>
+    <PrimaryCategory>
+      <CategoryID>${listing.categoryId}</CategoryID>
+    </PrimaryCategory>
+    <ConditionID>${listing.conditionId}</ConditionID>
+    <StartPrice>${listing.price}</StartPrice>
+    <Quantity>1</Quantity>
+    <SKU>${escapeXml(listing.sku)}</SKU>
+    <Country>${listing.shipFromCountry}</Country>
+    <Currency>USD</Currency>
+    <PostalCode>${listing.shipFromPostalCode}</PostalCode>
+    <Site>US</Site>
+    <ListingType>FixedPriceItem</ListingType>
+    <ListingDuration>GTC</ListingDuration>
+    <PictureDetails>
+      <PictureURL>${escapeXml(listing.pictureUrl)}</PictureURL>
+    </PictureDetails>
+    <SellerProfiles>
+      <SellerPaymentProfile>
+        <PaymentProfileID>${listing.paymentPolicyId}</PaymentProfileID>
+      </SellerPaymentProfile>
+      <SellerReturnProfile>
+        <ReturnProfileID>${listing.returnPolicyId}</ReturnProfileID>
+      </SellerReturnProfile>
+      <SellerShippingProfile>
+        <ShippingProfileID>${listing.fulfillmentPolicyId}</ShippingProfileID>
+      </SellerShippingProfile>
+    </SellerProfiles>
+    <SchedulingInfo>
+      <StartTime>${listing.startTime}</StartTime>
+    </SchedulingInfo>
+  </Item>
+</AddFixedPriceItemRequest>`;
+}
+
+async function addFixedPriceItem(accessToken, listing) {
+  const body = buildAddFixedPriceItemRequest(listing);
+
+  const res = await fetch(TRADING_API_URL, {
+    method: 'POST',
+    headers: {
+      'X-EBAY-API-COMPATIBILITY-LEVEL': '1155',
+      'X-EBAY-API-CALL-NAME': 'AddFixedPriceItem',
+      'X-EBAY-API-SITEID': '0',
+      'X-EBAY-API-IAF-TOKEN': accessToken,
+      'Content-Type': 'text/xml',
+    },
+    body,
+  });
+
+  const xml = await res.text();
+  const parsed = parser.parse(xml);
+  const response = parsed.AddFixedPriceItemResponse;
+
+  if (!response || response.Ack === 'Failure') {
+    throw new Error(`AddFixedPriceItem failed: ${xml.slice(0, 1500)}`);
+  }
+
+  return { ack: response.Ack, itemId: String(response.ItemID), startTime: response.StartTime };
+}
+
+module.exports = { getActiveListings, reviseSku, addFixedPriceItem };

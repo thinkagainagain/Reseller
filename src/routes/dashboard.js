@@ -83,14 +83,14 @@ router.get('/dashboard', async (req, res) => {
     db('inventory').where('first_listed_date', '>=', weekAgo).count('* as count').first(),
     db('inventory')
       .whereNotNull('date_acquired')
-      .whereNotNull('first_listed_date')
-      .select('date_acquired', 'first_listed_date'),
+      .whereNotNull('date_submitted')
+      .select('date_acquired', 'date_submitted'),
   ]);
 
   let avgDaysToList = null;
   if (listingDurations.length > 0) {
     const totalDays = listingDurations.reduce((sum, row) => {
-      const days = (new Date(row.first_listed_date) - new Date(row.date_acquired)) / (24 * 60 * 60 * 1000);
+      const days = (new Date(row.date_submitted) - new Date(row.date_acquired)) / (24 * 60 * 60 * 1000);
       return sum + days;
     }, 0);
     avgDaysToList = totalDays / listingDurations.length;

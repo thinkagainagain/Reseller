@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Ready to Publish</title>
+  <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
+</head>
+<body>
+  <main class="wide">
+    <h1>Ready to Publish (<%= items.length %>)</h1>
+    <%- include('partials/nav') %>
+
+    <p>Pushes selected items to eBay as scheduled listings, ~20 days out, using the
+      intake photo. You'll have until then to finish each one with real photos
+      directly on eBay, or publish early.</p>
+
+    <% if (results) { %>
+      <div class="card">
+        <strong>Push results</strong>
+        <% results.forEach(function(r) { %>
+          <% if (r.success) { %>
+            <div style="color:#2f855a;">✓ <%= r.sku %> — scheduled, Item ID <%= r.itemId %>, live ~<%= r.startTime ? r.startTime.slice(0,10) : '' %></div>
+          <% } else { %>
+            <div style="color:#c53030;">✗ <%= r.sku %> — <%= r.error %></div>
+          <% } %>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <% if (items.length === 0) { %>
+      <p>Nothing marked Ready to Publish yet — move an item there from its Edit page.</p>
+    <% } else { %>
+      <form method="POST" action="/inventory/push-to-ebay">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th>SKU</th>
+                <th>Item</th>
+                <th>eBay Category</th>
+                <th>Condition</th>
+                <th>List Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% items.forEach(function(item) { %>
+                <tr>
+                  <td><input type="checkbox" name="skus" value="<%= item.sku %>"></td>
+                  <td><a href="/inventory/<%= item.sku %>/edit"><%= item.sku %></a></td>
+                  <td><%= item.item_name || '—' %></td>
+                  <td><%= item.ebay_category_name || '—' %></td>
+                  <td><%= item.condition || '—' %></td>
+                  <td><%= item.list_price ? '$' + Number(item.list_price).toFixed(2) : '—' %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+        <button type="submit" onclick="return confirm('Push the selected items to eBay as scheduled listings?');">Push Selected to eBay</button>
+      </form>
+    <% } %>
+  </main>
+</body>
+</html>
