@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — eBay Network Diagnostic</title>
+  <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
+</head>
+<body>
+  <main>
+    <h1>eBay Network Diagnostic</h1>
+    <%- include('partials/nav') %>
+
+    <p>Runs eBay's OAuth token-refresh request twice from wherever this server is
+      actually running -- once via Node's built-in fetch, once via a raw <code>curl</code>
+      process. If both fail the same way, that's independent confirmation the problem is
+      this server's network path to eBay, not our request code. The output below never
+      includes the client secret or refresh token -- safe to copy/paste straight into a
+      support ticket.</p>
+
+    <form method="POST" action="/sync/diagnose">
+      <button type="submit">Run Diagnostic Now</button>
+    </form>
+
+    <% if (error) { %>
+      <div class="error" style="margin-top:1.5rem;">Diagnostic failed: <%= error %></div>
+    <% } %>
+
+    <% if (result) { %>
+      <div class="card" style="margin-top:1.5rem;">
+        <strong>Run info</strong>
+        <div>UTC timestamp: <%= result.timestamp %></div>
+        <div>Hostname: <%= result.hostname %></div>
+        <div>Node version: <%= result.nodeVersion %></div>
+      </div>
+
+      <div class="card">
+        <strong>Node fetch result</strong>
+        <% if (result.nodeResult.error) { %>
+          <div>Request-level error: <%= result.nodeResult.error %></div>
+        <% } else { %>
+          <div>Status: <%= result.nodeResult.status %> <%= result.nodeResult.statusText %></div>
+          <div>Duration: <%= result.nodeResult.durationMs %> ms</div>
+          <div>Response headers:</div>
+          <pre style="white-space:pre-wrap;word-break:break-all;"><%= JSON.stringify(result.nodeResult.headers, null, 2) %></pre>
+          <div>Response body (first 500 chars):</div>
+          <pre style="white-space:pre-wrap;word-break:break-all;"><%= result.nodeResult.bodySnippet %></pre>
+        <% } %>
+      </div>
+
+      <div class="card">
+        <strong>curl result</strong>
+        <% if (result.curlResult.notAvailable) { %>
+          <div>curl is not available on this host (ENOENT) -- can't run this comparison here.</div>
+        <% } else if (result.curlResult.error) { %>
+          <div>Request-level error: <%= result.curlResult.error %></div>
+        <% } else { %>
+          <div>Duration: <%= result.curlResult.durationMs %> ms</div>
+          <div>Raw output (headers + body):</div>
+          <pre style="white-space:pre-wrap;word-break:break-all;"><%= result.curlResult.raw %></pre>
+        <% } %>
+      </div>
+    <% } %>
+  </main>
+</body>
+</html>

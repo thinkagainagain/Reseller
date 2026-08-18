@@ -23,6 +23,8 @@
       <div class="error" style="margin-top:1.5rem;">Sync failed: <%= error %></div>
     <% } %>
 
+    <p style="margin-top:1rem;"><a href="/sync/diagnose">Run network diagnostic</a> (for the Hostinger support ticket, if sync is failing with a 500 from the token endpoint)</p>
+
     <% if (result) { %>
       <div class="card" style="margin-top:1.5rem;">
         <strong>Listings</strong>

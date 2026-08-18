@@ -28,3 +28,4 @@ open questions, and next steps.
 4. `npm run dev` — starts the app at `http://localhost:3000`.
 5. See [GIT-WORKFLOW.md](GIT-WORKFLOW.md) for the branching/commit workflow
    used in this repo.
+6. See [DEPLOYMENT.md](DEPLOYMENT.md) for how changes go live on Hostinger.
