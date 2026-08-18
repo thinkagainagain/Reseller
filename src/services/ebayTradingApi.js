@@ -123,6 +123,17 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
+function buildItemSpecificsXml(specifics) {
+  const entries = Object.entries(specifics || {}).filter(([, value]) => value);
+  if (entries.length === 0) return '';
+
+  const nameValueLines = entries
+    .map(([name, value]) => `    <NameValueList>\n      <Name>${escapeXml(name)}</Name>\n      <Value>${escapeXml(value)}</Value>\n    </NameValueList>`)
+    .join('\n');
+
+  return `\n  <ItemSpecifics>\n${nameValueLines}\n  </ItemSpecifics>`;
+}
+
 // Creates a new fixed-price listing scheduled to go live at a future date
 // (rather than immediately), so it's a real, native, editable Seller Hub
 // listing during the hold -- see the "Ready to Publish" plan for why this
@@ -149,6 +160,13 @@ function buildAddFixedPriceItemRequest(listing) {
     <PictureDetails>
       <PictureURL>${escapeXml(listing.pictureUrl)}</PictureURL>
     </PictureDetails>
+    <ShippingPackageDetails>
+      <WeightMajor unit="lbs">${listing.weightLbs}</WeightMajor>
+      <WeightMinor unit="oz">${listing.weightOz}</WeightMinor>
+      <PackageLength unit="in">${listing.packageLength}</PackageLength>
+      <PackageWidth unit="in">${listing.packageWidth}</PackageWidth>
+      <PackageDepth unit="in">${listing.packageHeight}</PackageDepth>
+    </ShippingPackageDetails>
     <SellerProfiles>
       <SellerPaymentProfile>
         <PaymentProfileID>${listing.paymentPolicyId}</PaymentProfileID>
@@ -162,7 +180,7 @@ function buildAddFixedPriceItemRequest(listing) {
     </SellerProfiles>
     <SchedulingInfo>
       <StartTime>${listing.startTime}</StartTime>
-    </SchedulingInfo>
+    </SchedulingInfo>${buildItemSpecificsXml(listing.itemSpecifics)}
   </Item>
 </AddFixedPriceItemRequest>`;
 }

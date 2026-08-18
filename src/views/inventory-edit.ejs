@@ -39,6 +39,9 @@
       <label for="description">Description</label>
       <textarea id="description" name="description"><%= item.description || '' %></textarea>
 
+      <label for="item_type">eBay "Type" (only if eBay rejects a push for missing it — varies by category, e.g. "Cigarette Case")</label>
+      <input type="text" id="item_type" name="item_type" value="<%= item.item_type || '' %>">
+
       <label for="brand">Brand</label>
       <input type="text" id="brand" name="brand" value="<%= item.brand || '' %>">
 
@@ -94,6 +97,21 @@
 
       <label for="list_price">List price</label>
       <input type="number" id="list_price" name="list_price" step="0.01" min="0" inputmode="decimal" value="<%= item.list_price ?? '' %>">
+
+      <label for="weight_lbs">Package weight — lbs</label>
+      <input type="number" id="weight_lbs" name="weight_lbs" step="1" min="0" inputmode="numeric" value="<%= item.weight_lbs ?? '' %>">
+
+      <label for="weight_oz">Package weight — oz</label>
+      <input type="number" id="weight_oz" name="weight_oz" step="1" min="0" max="15" inputmode="numeric" value="<%= item.weight_oz ?? '' %>">
+
+      <label for="package_length">Package length (in)</label>
+      <input type="number" id="package_length" name="package_length" step="0.5" min="0" inputmode="decimal" value="<%= item.package_length ?? '' %>">
+
+      <label for="package_width">Package width (in)</label>
+      <input type="number" id="package_width" name="package_width" step="0.5" min="0" inputmode="decimal" value="<%= item.package_width ?? '' %>">
+
+      <label for="package_height">Package height (in)</label>
+      <input type="number" id="package_height" name="package_height" step="0.5" min="0" inputmode="decimal" value="<%= item.package_height ?? '' %>">
 
       <label for="bin_location">Bin location</label>
       <input type="text" id="bin_location" name="bin_location" value="<%= item.bin_location || '' %>">

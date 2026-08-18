@@ -17,6 +17,11 @@ function validateItem(item, hasPhoto) {
   if (!item.ebay_category_id) missing.push('eBay category');
   if (!item.condition) missing.push('Condition');
   if (!hasPhoto) missing.push('Photo');
+  if (item.weight_lbs === null || item.weight_lbs === undefined) missing.push('Weight (lbs)');
+  if (item.weight_oz === null || item.weight_oz === undefined) missing.push('Weight (oz)');
+  if (!item.package_length) missing.push('Package length');
+  if (!item.package_width) missing.push('Package width');
+  if (!item.package_height) missing.push('Package height');
   return missing;
 }
 
@@ -67,6 +72,18 @@ async function publishToEbay(sku) {
     returnPolicyId,
     fulfillmentPolicyId,
     startTime,
+    weightLbs: item.weight_lbs,
+    weightOz: item.weight_oz,
+    packageLength: item.package_length,
+    packageWidth: item.package_width,
+    packageHeight: item.package_height,
+    itemSpecifics: {
+      Brand: item.brand,
+      Color: item.color,
+      Size: item.item_size,
+      'Country/Region of Manufacture': item.country_of_origin,
+      Type: item.item_type,
+    },
   };
 
   const accessToken = await getAccessToken(['https://api.ebay.com/oauth/api_scope/sell.inventory.readonly']);

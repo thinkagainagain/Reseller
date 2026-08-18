@@ -62,7 +62,8 @@ router.post('/inventory/:sku/edit', async (req, res) => {
     bin_location, status, death_pile_reason, death_pile_action_plan,
     date_acquired, notes, description, brand, item_size, color,
     year_manufactured, country_of_origin, ebay_category_id, ebay_category_name,
-    return_to,
+    weight_lbs, weight_oz, package_length, package_width, package_height,
+    item_type, return_to,
   } = req.body;
 
   await db('inventory')
@@ -88,6 +89,12 @@ router.post('/inventory/:sku/edit', async (req, res) => {
       country_of_origin: country_of_origin?.trim() || null,
       ebay_category_id: ebay_category_id?.trim() || null,
       ebay_category_name: ebay_category_name?.trim() || null,
+      weight_lbs: weight_lbs === '' ? null : Number(weight_lbs),
+      weight_oz: weight_oz === '' ? null : Number(weight_oz),
+      package_length: package_length === '' ? null : Number(package_length),
+      package_width: package_width === '' ? null : Number(package_width),
+      package_height: package_height === '' ? null : Number(package_height),
+      item_type: item_type?.trim() || null,
       updated_at: db.fn.now(),
     });
 
