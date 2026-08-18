@@ -1,10 +1,26 @@
 const express = require('express');
 const os = require('os');
-const util = require('util');
 const { execFile } = require('child_process');
 const { runSync } = require('../services/ebaySync');
 
-const execFileAsync = util.promisify(execFile);
+// Explicit callback->Promise wrapper rather than util.promisify(execFile) --
+// promisify relies on Node's internal custom-promisify hook for child_process
+// to resolve {stdout, stderr} instead of just the first callback arg, and
+// that didn't behave as expected on Hostinger's runtime (stdout came back
+// undefined). This works the same on every Node version.
+function execFileP(cmd, args, opts) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, opts, (err, stdout, stderr) => {
+      if (err) {
+        err.stdout = stdout;
+        err.stderr = stderr;
+        return reject(err);
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
 const router = express.Router();
 
 router.get('/sync', (req, res) => {
@@ -98,11 +114,13 @@ router.post('/sync/diagnose', async (req, res) => {
       `scope=${SCOPE}`,
     ];
     const started = Date.now();
-    const { stdout } = await execFileAsync('curl', args, { timeout: 20000 });
+    const { stdout } = await execFileP('curl', args, { timeout: 20000 });
     curlResult.durationMs = Date.now() - started;
     // Redact the Authorization header we sent (curl -i echoes response
     // headers only, but strip defensively in case any client here differs).
-    curlResult.raw = stdout.replace(new RegExp(`Basic ${basicAuth}`, 'g'), 'Basic [redacted]');
+    // split/join instead of a regex -- basicAuth is base64 and can contain
+    // '+', which is a regex quantifier metacharacter.
+    curlResult.raw = String(stdout ?? '').split(`Basic ${basicAuth}`).join('Basic [redacted]');
   } catch (err) {
     curlResult.error = err.message;
     curlResult.notAvailable = err.code === 'ENOENT';
