@@ -38,4 +38,36 @@ async function getAccessToken(scopes) {
   return data.access_token;
 }
 
-module.exports = { getAccessToken };
+// App-level token (client_credentials grant) -- no user consent/refresh token
+// involved, since this is only used for public reference data (like the
+// category taxonomy), not account-specific actions.
+async function getAppAccessToken() {
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    throw new Error('Missing EBAY_CLIENT_ID/EBAY_CLIENT_SECRET in .env');
+  }
+
+  const basicAuth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    scope: 'https://api.ebay.com/oauth/api_scope',
+  });
+
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`eBay app token request failed (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  return data.access_token;
+}
+
+module.exports = { getAccessToken, getAppAccessToken };

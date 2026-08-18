@@ -60,7 +60,9 @@ router.post('/inventory/:sku/edit', async (req, res) => {
   const {
     item_name, category, source, condition, purchase_cost, list_price,
     bin_location, status, death_pile_reason, death_pile_action_plan,
-    date_acquired, notes, description, return_to,
+    date_acquired, notes, description, brand, item_size, color,
+    year_manufactured, country_of_origin, ebay_category_id, ebay_category_name,
+    return_to,
   } = req.body;
 
   await db('inventory')
@@ -79,6 +81,13 @@ router.post('/inventory/:sku/edit', async (req, res) => {
       date_acquired: date_acquired || null,
       notes: notes?.trim() || null,
       description: description?.trim() || null,
+      brand: brand?.trim() || null,
+      item_size: item_size?.trim() || null,
+      color: color?.trim() || null,
+      year_manufactured: year_manufactured?.trim() || null,
+      country_of_origin: country_of_origin?.trim() || null,
+      ebay_category_id: ebay_category_id?.trim() || null,
+      ebay_category_name: ebay_category_name?.trim() || null,
       updated_at: db.fn.now(),
     });
 
@@ -92,7 +101,7 @@ router.post('/inventory/:sku/edit', async (req, res) => {
 
 router.post('/inventory/:sku/generate-ai', async (req, res) => {
   const { sku } = req.params;
-  const { return_to } = req.body;
+  const { return_to, clarification } = req.body;
 
   const item = await db('inventory').where({ sku }).first();
   if (!item) {
@@ -104,12 +113,27 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
   const hasPhoto = Boolean(await db('intake_photos').where({ sku }).first());
 
   try {
-    const draft = await generateListingDraft(sku);
-    const notes = item.notes
+    const draft = await generateListingDraft(sku, clarification?.trim() || null);
+    const notes = item.notes && draft.notes
       ? `${draft.notes}\n\n---\n\n${item.notes}`
-      : draft.notes;
+      : draft.notes || item.notes;
     res.render('inventory-edit', {
-      item: { ...item, item_name: draft.title, category: draft.category, condition: draft.condition, notes },
+      item: {
+        ...item,
+        item_name: draft.title,
+        description: draft.description,
+        brand: draft.brand ?? item.brand,
+        item_size: draft.item_size ?? item.item_size,
+        color: draft.color ?? item.color,
+        year_manufactured: draft.year_manufactured ?? item.year_manufactured,
+        country_of_origin: draft.country_of_origin ?? item.country_of_origin,
+        list_price: draft.list_price ?? item.list_price,
+        category: draft.category,
+        condition: draft.condition,
+        ebay_category_id: draft.ebay_category_id ?? item.ebay_category_id,
+        ebay_category_name: draft.ebay_category_name ?? item.ebay_category_name,
+        notes,
+      },
       constants,
       returnTo,
       hasPhoto,

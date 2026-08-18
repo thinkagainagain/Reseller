@@ -16,14 +16,18 @@
     <% } %>
 
     <% if (aiDraft) { %>
-      <div class="card" style="color:#b7791f;font-weight:600;">AI-suggested Title, Notes, category, and condition below — not yet saved. Review and click Save.</div>
+      <div class="card" style="color:#b7791f;font-weight:600;">AI research below — not yet saved. Review, add a clarification note and re-run if something's off, or Save when it looks right.</div>
     <% } %>
 
     <% if (hasPhoto) { %>
-      <form method="POST" action="/inventory/<%= item.sku %>/generate-ai" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
-        <input type="hidden" name="return_to" value="<%= returnTo %>">
-        <button type="submit" class="button-secondary">Generate with AI</button>
-      </form>
+      <div class="card">
+        <form method="POST" action="/inventory/<%= item.sku %>/generate-ai" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
+          <input type="hidden" name="return_to" value="<%= returnTo %>">
+          <label for="clarification">Clarification notes (optional)</label>
+          <textarea id="clarification" name="clarification" placeholder="e.g. It's actually a men's size 10, not 8 -- or the brand is Fossil, not what you found"></textarea>
+          <button type="submit" class="button-secondary">Generate with AI</button>
+        </form>
+      </div>
     <% } %>
 
     <form method="POST" action="/inventory/<%= item.sku %>/edit">
@@ -34,6 +38,21 @@
 
       <label for="description">Description</label>
       <textarea id="description" name="description"><%= item.description || '' %></textarea>
+
+      <label for="brand">Brand</label>
+      <input type="text" id="brand" name="brand" value="<%= item.brand || '' %>">
+
+      <label for="item_size">Size</label>
+      <input type="text" id="item_size" name="item_size" value="<%= item.item_size || '' %>">
+
+      <label for="color">Color</label>
+      <input type="text" id="color" name="color" value="<%= item.color || '' %>">
+
+      <label for="year_manufactured">Year of manufacture</label>
+      <input type="text" id="year_manufactured" name="year_manufactured" value="<%= item.year_manufactured || '' %>">
+
+      <label for="country_of_origin">Country of origin</label>
+      <input type="text" id="country_of_origin" name="country_of_origin" value="<%= item.country_of_origin || '' %>">
 
       <label for="status">Status</label>
       <select id="status" name="status">
@@ -49,6 +68,10 @@
           <option value="<%= c %>" <%= item.category === c ? 'selected' : '' %>><%= c %></option>
         <% }); %>
       </select>
+
+      <label for="ebay_category_name">eBay category (AI-suggested)</label>
+      <input type="text" id="ebay_category_name" name="ebay_category_name" value="<%= item.ebay_category_name || '' %>">
+      <input type="hidden" id="ebay_category_id" name="ebay_category_id" value="<%= item.ebay_category_id || '' %>">
 
       <label for="source">Source</label>
       <select id="source" name="source">

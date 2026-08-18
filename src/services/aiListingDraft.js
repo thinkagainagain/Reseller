@@ -3,6 +3,8 @@ const path = require('path');
 const db = require('../db');
 const { CATEGORIES, CONDITIONS } = require('../lib/constants');
 const { UPLOADS_ROOT } = require('../lib/uploadsDir');
+const { getAppAccessToken } = require('./ebayAuth');
+const { getCategorySuggestion } = require('./ebayTaxonomy');
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -42,7 +44,7 @@ async function fetchLensMatches(photoUrl) {
   return matches;
 }
 
-async function generateListingDraft(sku) {
+async function generateListingDraft(sku, clarification) {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (!anthropicKey) {
     throw new Error('Missing ANTHROPIC_API_KEY in .env');
@@ -70,31 +72,53 @@ async function generateListingDraft(sku) {
 
   const tool = {
     name: 'submit_listing_research',
-    description: 'Submit the SEO title and research notes for the item shown in the photo. Call this exactly once, as your final step.',
+    description: 'Submit the researched listing fields for the item shown in the photo. Call this exactly once, as your final step.',
     input_schema: {
       type: 'object',
       properties: {
         title: {
           type: 'string',
-          description: 'The single best SEO-optimized eBay listing title, under 80 characters, based on the Google Lens matches and the photo. This goes directly into the live Title field, so make it the best real answer, not a placeholder.',
+          description: 'The single best SEO-optimized eBay listing title, under 80 characters. This goes directly into the live Title field.',
         },
+        description: {
+          type: 'string',
+          description:
+            'A factual, persuasive eBay sales listing description built to actually sell the item -- ' +
+            'written for both search engines (SEO) and AI shopping/answer assistants (AEO): lead with ' +
+            'what it is and why it is desirable, include verified facts (not visual guesses), and end ' +
+            'with a light call to action. This is shown directly to buyers.',
+        },
+        brand: { type: 'string', description: 'Only if positively identified -- omit entirely if not confidently known.' },
+        item_size: { type: 'string', description: 'Only if positively identified -- omit entirely if not confidently known.' },
+        color: { type: 'string', description: 'Only if positively identified -- omit entirely if not confidently known.' },
+        year_manufactured: { type: 'string', description: 'Only if positively identified (a specific year or era like "1970s") -- omit entirely if not confidently known.' },
+        country_of_origin: { type: 'string', description: 'Only if positively identified -- omit entirely if not confidently known.' },
+        list_price: {
+          type: 'number',
+          description: 'A best-guess asking price in USD based on comparable prices found in the Lens matches. Omit if no useful pricing data was found.',
+        },
+        category: { type: 'string', enum: CATEGORIES, description: 'Our internal simplified category list.' },
+        condition: { type: 'string', enum: CONDITIONS },
         notes: {
           type: 'string',
           description:
-            'Everything else useful for the seller\'s own reference (not shown to buyers): 2-3 ' +
-            'alternate title ideas, brand/product facts, condition assessment from the photo, and a ' +
-            'short list of comparable matches with their prices if any were found in the Lens results.',
+            'Bonus research for the seller\'s own reference (not shown to buyers): 2-3 alternate title ' +
+            'ideas, any additional facts that did not fit the structured fields above, and a short list ' +
+            'of comparable matches with prices from the Lens results.',
         },
-        category: { type: 'string', enum: CATEGORIES },
-        condition: { type: 'string', enum: CONDITIONS },
       },
-      required: ['title', 'notes', 'category', 'condition'],
+      required: ['title', 'description', 'category', 'condition'],
     },
   };
 
   const lensMatchesText = lensMatches.length
     ? lensMatches.map((m) => `- "${m.title}" (${m.source}${m.price ? `, ${m.price}` : ''})`).join('\n')
     : '(no visual matches found)';
+
+  const clarificationText = clarification
+    ? `\n\nThe seller reviewed a previous draft and left this correction/clarification -- treat it as ` +
+      `ground truth and incorporate it: "${clarification}"`
+    : '';
 
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
@@ -107,15 +131,14 @@ async function generateListingDraft(sku) {
       model: MODEL,
       max_tokens: 2048,
       system:
-        'You are a resale listing assistant. You are given a photo of a secondhand item, the rough ' +
-        'working title the seller typed in when they first logged the item (often generic or ' +
+        'You are a resale listing research assistant. You are given a photo of a secondhand item, the ' +
+        'rough working title the seller typed in when they first logged the item (often generic or ' +
         'incomplete), and a list of Google Lens visual-match results for that photo (real matching ' +
-        'product listings found on the web, some with prices). Use all three together to identify the ' +
-        'exact item and write an SEO-optimized eBay title for it, plus separate research notes covering ' +
-        'brand/facts, alternate title ideas, condition assessed from the photo, and comparable prices ' +
-        'from the Lens matches. If the Lens matches seem unrelated to the actual item in the photo, ' +
-        'trust the photo and say so in the notes rather than forcing a bad match. Call ' +
-        'submit_listing_research exactly once with your final answer.',
+        'product listings found on the web, some with prices). Identify the exact item and fill in the ' +
+        'structured fields. Only fill in brand/size/color/year/country if you can positively identify ' +
+        'them -- never guess or fabricate these, just omit them if unsure. If the Lens matches seem ' +
+        'unrelated to the actual item in the photo, trust the photo over the matches and say so in the ' +
+        'notes. Call submit_listing_research exactly once with your final answer.',
       messages: [
         {
           role: 'user',
@@ -125,7 +148,7 @@ async function generateListingDraft(sku) {
               type: 'text',
               text:
                 `Seller's rough working title: "${item?.item_name || '(none entered)'}"\n\n` +
-                `Google Lens visual matches for this photo:\n${lensMatchesText}\n\n` +
+                `Google Lens visual matches for this photo:\n${lensMatchesText}${clarificationText}\n\n` +
                 'Identify the exact item and submit your research.',
             },
           ],
@@ -148,7 +171,22 @@ async function generateListingDraft(sku) {
     throw new Error(explanation || 'Claude did not return a structured draft.');
   }
 
-  return toolUse.input;
+  const draft = toolUse.input;
+
+  try {
+    const appToken = await getAppAccessToken();
+    const suggestion = await getCategorySuggestion(appToken, draft.title);
+    if (suggestion) {
+      draft.ebay_category_id = suggestion.categoryId;
+      draft.ebay_category_name = suggestion.categoryName;
+    }
+  } catch (err) {
+    // eBay category lookup is a bonus, not essential -- don't fail the whole
+    // draft over it, just proceed without a suggestion.
+    console.error('eBay category suggestion failed:', err.message);
+  }
+
+  return draft;
 }
 
 module.exports = { generateListingDraft };
