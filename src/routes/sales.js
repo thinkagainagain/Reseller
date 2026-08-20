@@ -8,7 +8,7 @@ router.get('/sales/new', async (req, res) => {
   const sku = req.query.sku || '';
   const item = sku ? await db('inventory').where({ sku }).first() : null;
 
-  res.render('sale-new', {
+  res.render('sales/sale-new', {
     item,
     sku,
     constants,
@@ -24,7 +24,7 @@ router.post('/sales', async (req, res) => {
 
   const item = await db('inventory').where({ sku }).first();
   if (!item) {
-    return res.render('sale-new', {
+    return res.render('sales/sale-new', {
       item: null,
       sku,
       constants,

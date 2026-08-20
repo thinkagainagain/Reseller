@@ -1,6 +1,7 @@
 const express = require('express');
 const os = require('os');
 const { execFile } = require('child_process');
+const config = require('../config');
 const { runSync } = require('../services/ebaySync');
 
 // Explicit callback->Promise wrapper rather than util.promisify(execFile) --
@@ -24,16 +25,16 @@ function execFileP(cmd, args, opts) {
 const router = express.Router();
 
 router.get('/sync', (req, res) => {
-  res.render('sync', { result: null, error: null });
+  res.render('sync/sync', { result: null, error: null });
 });
 
 router.post('/sync/run', async (req, res) => {
   try {
     const { listings, orders } = await runSync();
-    res.render('sync', { result: { listings, orders }, error: null });
+    res.render('sync/sync', { result: { listings, orders }, error: null });
   } catch (err) {
     console.error('Sync failed:', err);
-    res.render('sync', { result: null, error: err.message });
+    res.render('sync/sync', { result: null, error: err.message });
   }
 });
 
@@ -44,7 +45,7 @@ router.post('/sync/run', async (req, res) => {
 // straight into a Hostinger support ticket. Never echoes CLIENT_ID/SECRET/
 // REFRESH_TOKEN -- only the response we get back from eBay.
 router.get('/sync/diagnose', (req, res) => {
-  res.render('sync-diagnose', { result: null, error: null });
+  res.render('sync/sync-diagnose', { result: null, error: null });
 });
 
 router.post('/sync/diagnose', async (req, res) => {
@@ -52,14 +53,14 @@ router.post('/sync/diagnose', async (req, res) => {
   const hostname = os.hostname();
   const nodeVersion = process.version;
 
-  const CLIENT_ID = process.env.EBAY_CLIENT_ID;
-  const CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET;
-  const REFRESH_TOKEN = process.env.EBAY_REFRESH_TOKEN;
+  const CLIENT_ID = config.ebay.clientId;
+  const CLIENT_SECRET = config.ebay.clientSecret;
+  const REFRESH_TOKEN = config.ebay.refreshToken;
   const TOKEN_URL = 'https://api.ebay.com/identity/v1/oauth2/token';
   const SCOPE = 'https://api.ebay.com/oauth/api_scope/sell.inventory.readonly';
 
   if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
-    return res.render('sync-diagnose', {
+    return res.render('sync/sync-diagnose', {
       result: null,
       error: 'Missing EBAY_CLIENT_ID/EBAY_CLIENT_SECRET/EBAY_REFRESH_TOKEN in .env',
     });
@@ -126,7 +127,7 @@ router.post('/sync/diagnose', async (req, res) => {
     curlResult.notAvailable = err.code === 'ENOENT';
   }
 
-  res.render('sync-diagnose', {
+  res.render('sync/sync-diagnose', {
     result: { timestamp, hostname, nodeVersion, nodeResult, curlResult },
     error: null,
   });

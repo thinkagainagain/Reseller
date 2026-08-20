@@ -10,7 +10,7 @@ router.get('/sku-export', async (req, res) => {
     .count('* as count')
     .first();
 
-  res.render('sku-export', { count: Number(count.count) });
+  res.render('sku-export/sku-export', { count: Number(count.count) });
 });
 
 router.get('/sku-export/download', async (req, res) => {

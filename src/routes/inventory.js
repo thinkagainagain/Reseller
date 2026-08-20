@@ -12,7 +12,7 @@ router.get('/inventory', async (req, res) => {
   const items = await db('inventory')
     .where({ status: 'Active' })
     .orderBy('date_acquired', 'desc');
-  res.render('inventory', { items });
+  res.render('inventory/inventory', { items });
 });
 
 router.get('/inventory/sold', async (req, res) => {
@@ -28,7 +28,7 @@ router.get('/inventory/sold', async (req, res) => {
       'sales_log.platform'
     )
     .orderBy('sales_log.sale_date', 'desc');
-  res.render('sold', { items });
+  res.render('inventory/sold', { items });
 });
 
 router.get('/inventory/death-pile', async (req, res) => {
@@ -38,7 +38,7 @@ router.get('/inventory/death-pile', async (req, res) => {
 
   const totalTiedUp = items.reduce((sum, item) => sum + Number(item.purchase_cost || 0), 0);
 
-  res.render('death-pile', { items, totalTiedUp });
+  res.render('inventory/death-pile', { items, totalTiedUp });
 });
 
 router.get('/inventory/:sku/edit', async (req, res) => {
@@ -52,7 +52,7 @@ router.get('/inventory/:sku/edit', async (req, res) => {
 
   const hasPhoto = Boolean(await db('intake_photos').where({ sku: item.sku }).first());
 
-  res.render('inventory-edit', { item, constants, returnTo, hasPhoto, aiDraft: false, error: null });
+  res.render('inventory/inventory-edit', { item, constants, returnTo, hasPhoto, aiDraft: false, error: null });
 });
 
 router.post('/inventory/:sku/edit', async (req, res) => {
@@ -124,7 +124,7 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
     const notes = item.notes && draft.notes
       ? `${draft.notes}\n\n---\n\n${item.notes}`
       : draft.notes || item.notes;
-    res.render('inventory-edit', {
+    res.render('inventory/inventory-edit', {
       item: {
         ...item,
         item_name: draft.title,
@@ -148,7 +148,7 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
       error: null,
     });
   } catch (err) {
-    res.render('inventory-edit', {
+    res.render('inventory/inventory-edit', {
       item,
       constants,
       returnTo,

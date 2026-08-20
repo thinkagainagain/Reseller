@@ -9,7 +9,7 @@ router.get('/inventory/ready-to-publish', async (req, res) => {
     .where({ status: 'Ready to Publish' })
     .orderBy('date_acquired', 'asc');
 
-  res.render('ready-to-publish', { items, results: null });
+  res.render('ready-to-publish/ready-to-publish', { items, results: null });
 });
 
 router.post('/inventory/push-to-ebay', async (req, res) => {
@@ -23,7 +23,7 @@ router.post('/inventory/push-to-ebay', async (req, res) => {
     .where({ status: 'Ready to Publish' })
     .orderBy('date_acquired', 'asc');
 
-  res.render('ready-to-publish', { items, results });
+  res.render('ready-to-publish/ready-to-publish', { items, results });
 });
 
 module.exports = router;

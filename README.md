@@ -10,10 +10,16 @@ open questions, and next steps.
 
 ## Layout
 
-- `src/` — the app: Express server, routes, SQLite (via Knex) migrations/seeds, EJS views
+- `src/config/` — single source of truth for env vars (`process.env` is only read here)
+- `src/routes/`, `src/services/`, `src/lib/`, `src/middleware/` — Express routes,
+  business logic/external API clients, pure helpers, auth middleware
+- `src/views/` — EJS templates, one subfolder per route module (`src/views/inventory/`
+  holds the views `src/routes/inventory.js` renders, etc.)
+- `src/db/` — Knex config, migrations, seeds
+- `src/scripts/` — one-off/ops scripts (e.g. manual eBay sync/push), run directly with `node`
+- `tests/` — smoke tests (Node's built-in test runner, `npm test`), mirrors `src/lib/`
 - `public/` — static assets and intake photo uploads (gitignored)
 - `spreadsheet/` — the original business tracker workbook (kept as reference/export target)
-- `scripts/` — reserved for one-off/ops scripts
 - `docs/` — SOPs and process documentation
 - `data/` — local-only SQLite database file (gitignored, not committed)
 

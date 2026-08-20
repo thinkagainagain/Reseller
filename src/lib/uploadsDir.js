@@ -1,4 +1,5 @@
 const path = require('path');
+const config = require('../config');
 
 // Photos must live outside the app's own source tree. Hostinger's auto-deploy
 // creates a brand-new versioned folder for every push -- anything saved under
@@ -12,8 +13,8 @@ const path = require('path');
 // confirmed via testing that the same value under a different name saves
 // fine, so it's a reserved/internal name collision on their end, not
 // anything wrong with the value itself.
-const UPLOADS_ROOT = process.env.REBOOTY_UPLOADS_DIR
-  ? path.resolve(process.env.REBOOTY_UPLOADS_DIR)
+const UPLOADS_ROOT = config.uploads.dir
+  ? path.resolve(config.uploads.dir)
   : path.join(__dirname, '..', '..', 'public', 'uploads');
 
 module.exports = { UPLOADS_ROOT };

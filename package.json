@@ -9,7 +9,8 @@
     "start": "node src/server.js",
     "migrate": "knex --knexfile src/db/knexfile.js migrate:latest",
     "seed": "knex --knexfile src/db/knexfile.js seed:run",
-    "sync:ebay": "node src/scripts/syncEbay.js"
+    "sync:ebay": "node src/scripts/syncEbay.js",
+    "test": "node --test"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

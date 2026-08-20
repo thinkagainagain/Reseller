@@ -1,10 +1,9 @@
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '..', '..', '.env') });
 const bcrypt = require('bcryptjs');
+const config = require('../../config');
 
 exports.seed = async function (knex) {
-  const username = process.env.ADMIN_USERNAME;
-  const password = process.env.ADMIN_PASSWORD;
+  const username = config.auth.adminUsername;
+  const password = config.auth.adminPassword;
 
   if (!username || !password) {
     console.warn('ADMIN_USERNAME/ADMIN_PASSWORD not set in .env — skipping admin user seed.');

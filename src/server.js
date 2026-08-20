@@ -1,9 +1,9 @@
-require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
 
+const config = require('./config');
 const db = require('./db');
 const requireAuth = require('./middleware/requireAuth');
 const authRoutes = require('./routes/auth');
@@ -35,7 +35,7 @@ app.use('/uploads', express.static(UPLOADS_ROOT));
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+    secret: config.app.sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
@@ -53,7 +53,16 @@ app.use(requireAuth, readyToPublishRoutes);
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
-const PORT = process.env.PORT || 3000;
+app.use((req, res) => res.status(404).render('errors/404'));
+
+// Express only treats a 4-arg middleware as the error handler -- `next` must
+// stay in the signature even though it's never called.
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).render('errors/500');
+});
+
+const PORT = config.app.port;
 
 db.migrate
   .latest()

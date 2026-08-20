@@ -1,12 +1,12 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
+const config = require('../config');
 
 // DB_CLIENT=pg in production (Supabase's managed Postgres, connected via
 // Hostinger's Web App "Connect a database" integration -- no native
 // compilation needed, unlike the SQLite drivers that don't build on
 // Hostinger's runtime). Defaults to SQLite for local dev -- one file, no
 // server process to install or run.
-const client = process.env.DB_CLIENT || 'better-sqlite3';
+const client = config.db.client;
 
 if (client === 'pg') {
   // By default node-postgres parses DATE columns into JS Date objects,
@@ -24,14 +24,14 @@ const dbConfig =
     ? {
         client: 'pg',
         connection: {
-          connectionString: process.env.DATABASE_URL,
+          connectionString: config.db.url,
           ssl: { rejectUnauthorized: false },
         },
       }
     : {
         client: 'better-sqlite3',
         connection: {
-          filename: path.resolve(__dirname, '..', '..', process.env.DB_FILE || './data/rebooty.sqlite3'),
+          filename: path.resolve(__dirname, '..', '..', config.db.file),
         },
         useNullAsDefault: true,
       };

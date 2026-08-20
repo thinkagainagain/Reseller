@@ -1,3 +1,4 @@
+const config = require('../config');
 const db = require('../db');
 const { getAccessToken } = require('./ebayAuth');
 const { addFixedPriceItem } = require('./ebayTradingApi');
@@ -42,12 +43,12 @@ async function publishToEbay(sku) {
     throw new Error(`No eBay ConditionID mapping for condition "${item.condition}"`);
   }
 
-  const appUrl = process.env.APP_PUBLIC_URL;
-  const shipFromPostalCode = process.env.EBAY_SHIP_FROM_POSTAL_CODE;
-  const shipFromCountry = process.env.EBAY_SHIP_FROM_COUNTRY;
-  const paymentPolicyId = process.env.EBAY_PAYMENT_POLICY_ID;
-  const returnPolicyId = process.env.EBAY_RETURN_POLICY_ID;
-  const fulfillmentPolicyId = process.env.EBAY_FULFILLMENT_POLICY_ID;
+  const appUrl = config.app.publicUrl;
+  const shipFromPostalCode = config.ebay.shipFromPostalCode;
+  const shipFromCountry = config.ebay.shipFromCountry;
+  const paymentPolicyId = config.ebay.paymentPolicyId;
+  const returnPolicyId = config.ebay.returnPolicyId;
+  const fulfillmentPolicyId = config.ebay.fulfillmentPolicyId;
 
   if (!appUrl || !shipFromPostalCode || !shipFromCountry || !paymentPolicyId || !returnPolicyId || !fulfillmentPolicyId) {
     throw new Error(

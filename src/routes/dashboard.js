@@ -96,7 +96,7 @@ router.get('/dashboard', async (req, res) => {
     avgDaysToList = totalDays / listingDurations.length;
   }
 
-  res.render('dashboard', {
+  res.render('dashboard/dashboard', {
     activeCount: Number(active.count),
     waitingCount: Number(waiting.count),
     waitingTiedUp: Number(waiting.tiedUp || 0),

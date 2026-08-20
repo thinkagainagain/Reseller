@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const config = require('../config');
 const db = require('../db');
 const { CATEGORIES, CONDITIONS } = require('../lib/constants');
 const { UPLOADS_ROOT } = require('../lib/uploadsDir');
@@ -21,7 +22,7 @@ const MIME_BY_EXT = {
 };
 
 async function fetchLensMatches(photoUrl) {
-  const apiKey = process.env.SERPAPI_KEY;
+  const apiKey = config.serpapi.key;
   if (!apiKey) {
     throw new Error('Missing SERPAPI_KEY in .env');
   }
@@ -45,12 +46,12 @@ async function fetchLensMatches(photoUrl) {
 }
 
 async function generateListingDraft(sku, clarification) {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const anthropicKey = config.anthropic.apiKey;
   if (!anthropicKey) {
     throw new Error('Missing ANTHROPIC_API_KEY in .env');
   }
 
-  const appUrl = process.env.APP_PUBLIC_URL;
+  const appUrl = config.app.publicUrl;
   if (!appUrl) {
     throw new Error('Missing APP_PUBLIC_URL in .env');
   }

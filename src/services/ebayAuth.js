@@ -1,6 +1,8 @@
-const CLIENT_ID = process.env.EBAY_CLIENT_ID;
-const CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.EBAY_REFRESH_TOKEN;
+const config = require('../config');
+
+const CLIENT_ID = config.ebay.clientId;
+const CLIENT_SECRET = config.ebay.clientSecret;
+const REFRESH_TOKEN = config.ebay.refreshToken;
 
 const TOKEN_URL = 'https://api.ebay.com/identity/v1/oauth2/token';
 

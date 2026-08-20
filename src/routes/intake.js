@@ -10,12 +10,12 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/intake', (req, res) => {
-  res.render('intake', { error: null });
+  res.render('intake/intake', { error: null });
 });
 
 router.post('/intake', upload.array('photos', 10), async (req, res) => {
   if (!req.files || req.files.length === 0) {
-    return res.render('intake', { error: 'Take at least one photo before saving.' });
+    return res.render('intake/intake', { error: 'Take at least one photo before saving.' });
   }
 
   const sku = await nextSku(db);
@@ -67,7 +67,7 @@ router.get('/intake/queue', async (req, res) => {
 
   const totalTiedUp = items.reduce((sum, item) => sum + Number(item.purchase_cost || 0), 0);
 
-  res.render('intake-queue', { items, firstPhotoBySku, totalTiedUp });
+  res.render('intake/intake-queue', { items, firstPhotoBySku, totalTiedUp });
 });
 
 module.exports = router;
