@@ -55,15 +55,16 @@ the problem even without eBay's involvement.
 
 ## Immediate next step
 
-A revised Hostinger support ticket reply is ready to submit at
-[docs/hostinger-ebay-500-support-ticket.md](hostinger-ebay-500-support-ticket.md) —
-this is the reply to Hostinger's follow-up questions (see above), with three real
-timestamped fetch+curl runs, the confirmed outbound IP, and the account name
-corrected to "Sean_Lucas". **This needs to be submitted by hand** — Claude doesn't
-log into third-party support portals or enter credentials. Once sent, the next
-session should pick up by checking whether Hostinger has replied again (particularly
-on the dedicated-IP question, which is the most likely actual fix if the
-IP-reputation theory holds).
+[docs/hostinger-ebay-500-support-ticket.md](hostinger-ebay-500-support-ticket.md)
+contains just the subject + message body, ready to paste directly into the
+Hostinger support chat — went through four rounds of review by Hostinger's own
+support AI (precision on request counts, hedged-not-asserted causal language,
+dropped the server filesystem path, exact wording on the outbound-IP claim) before
+they signed off on it as ready. **Still needs to be pasted in by hand** — Claude
+doesn't log into third-party support portals or enter credentials. Once sent, the
+next session should pick up by checking whether Hostinger has replied again
+(particularly on the dedicated-IP question, which is the most likely actual fix if
+the IP-reputation theory holds).
 
 The older draft at the repo root (`hostinger-support-ticket-draft.txt`, untracked,
 not committed) is now fully superseded and safe to delete — it predates both the
