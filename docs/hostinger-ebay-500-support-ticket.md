@@ -4,11 +4,10 @@ account
 Hi,
 
 Thanks for the detailed follow-up. Confirming the scope: this ticket concerns a
-runtime rejection from eBay's API (HTTP 500 on all six requests tested during this
-diagnostic window), not a deployment/build failure — I've separately confirmed the app's own Git
-auto-deploy pipeline is working correctly (latest deploy succeeded, site is live and
-serving normal traffic), so no build logs should be needed here unless something
-else turns up.
+runtime HTTP 500 response from eBay's API (on all six requests tested during this
+diagnostic window), not a deployment/build failure — I've separately confirmed the
+app's own Git auto-deploy pipeline is working correctly (latest deploy succeeded,
+site is live and serving normal traffic).
 
 **Confirmed: identical requests succeed from other networks.** The exact same code,
 same credentials, sent from my home network (not on Hostinger) returns a normal
