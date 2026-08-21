@@ -6,7 +6,11 @@ cross-network success, and the outbound-IP/dedicated-IP questions. Language arou
 cause (IP reputation vs. routing vs. an eBay-side rule) was then softened to
 possibilities rather than conclusions, per Hostinger's second reply. Third reply:
 toned down the subject line and the "headers show it reached the backend" claim,
-dropped the server filesystem path, and noted the outbound-IP methodology.
+dropped the server filesystem path, and noted the outbound-IP methodology. Fourth
+reply: precision fixes — "all six requests tested" instead of "every request",
+"test batches" instead of "examples" since each batch shares one timestamp across
+its fetch+curl pair, and a shorter, more direct outbound-IP sentence. Submitted
+directly into the Hostinger support chat, not as a separate ticket/attachment.
 
 Copy everything below the line into the Hostinger support ticket reply.
 
@@ -18,8 +22,8 @@ account
 Hi,
 
 Thanks for the detailed follow-up. Confirming the scope: this ticket concerns a
-runtime rejection from eBay's API (HTTP 500 on every request from this account), not
-a deployment/build failure — I've separately confirmed the app's own Git
+runtime rejection from eBay's API (HTTP 500 on all six requests tested during this
+diagnostic window), not a deployment/build failure — I've separately confirmed the app's own Git
 auto-deploy pipeline is working correctly (latest deploy succeeded, site is live and
 serving normal traffic), so no build logs should be needed here unless something
 else turns up.
@@ -29,17 +33,13 @@ same credentials, sent from my home network (not on Hostinger) returns a normal
 `200 OK` with a valid access token every time. Only requests originating from this
 hosting account fail.
 
-**Outbound IP for this account:** `212.1.209.194` — captured by making a plain
-outbound HTTPS request from the server to a public IP-echo service
-(api.ipify.org), the same way the eBay request itself goes out, so this should
-reflect the same egress path eBay sees rather than being specific to that one
-lookup. Consistent across three separate runs.
+The public egress IP observed from three server-side requests was `212.1.209.194`;
+please confirm whether this is the address used for external API connections.
 
-**Three timestamped examples**, each run via both Node's `fetch` and a raw `curl`
-process (two independent HTTP clients) from the server itself, one right after
-another:
+**Three timestamped test batches**, each run via both Node's `fetch` and a raw
+`curl` process from the server itself:
 
-| UTC timestamp | Client | Status | Duration | eBay POP ID | x-envoy-upstream-service-time |
+| UTC test-batch timestamp | Client | Status | Duration | eBay POP ID | x-envoy-upstream-service-time |
 |---|---|---|---|---|---|
 | 2026-08-21T00:04:24.512Z | fetch | 500 | 288ms | UFES2-RNOAZ05-api | 57ms |
 | 2026-08-21T00:04:24.512Z | curl | 500 | 235ms | UFES2-SLCAZ03-api | 64ms |
@@ -76,9 +76,7 @@ account/security rule; I don't have enough visibility to say which.
 
 **My questions for you:**
 
-1. Can you confirm this is in fact the account's outbound IP for external HTTPS
-   requests (`212.1.209.194`), and whether it's shared across other Hostinger
-   customers?
+1. Is that egress IP shared across other Hostinger customers?
 2. Is a static or dedicated outbound IP available for this hosting plan? I'm not
    assuming this would fix it — but if source-IP reputation turns out to be a factor,
    it seems like a reasonable thing to rule in or out.
