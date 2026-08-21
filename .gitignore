@@ -6,6 +6,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code local config (contains permission rules with embedded secrets)
+.claude/
+
 # Node
 node_modules/
 npm-debug.log*
