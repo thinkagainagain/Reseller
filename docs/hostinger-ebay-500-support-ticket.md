@@ -4,14 +4,16 @@ Status: **revised, ready to submit** — updated per Hostinger support's follow-
 request for multiple timestamped examples, non-sensitive headers, confirmed
 cross-network success, and the outbound-IP/dedicated-IP questions. Language around
 cause (IP reputation vs. routing vs. an eBay-side rule) was then softened to
-possibilities rather than conclusions, per Hostinger's second reply.
+possibilities rather than conclusions, per Hostinger's second reply. Third reply:
+toned down the subject line and the "headers show it reached the backend" claim,
+dropped the server filesystem path, and noted the outbound-IP methodology.
 
 Copy everything below the line into the Hostinger support ticket reply.
 
 ---
 
-**Subject:** Outbound requests to api.ebay.com consistently rejected with 500 —
-follow-up with timestamped examples and outbound IP
+**Subject:** Outbound requests to api.ebay.com return HTTP 500 from this hosting
+account
 
 Hi,
 
@@ -27,8 +29,11 @@ same credentials, sent from my home network (not on Hostinger) returns a normal
 `200 OK` with a valid access token every time. Only requests originating from this
 hosting account fail.
 
-**Outbound IP for this account:** `212.1.209.194` (captured directly from the
-server via a public IP-echo lookup, alongside each test below).
+**Outbound IP for this account:** `212.1.209.194` — captured by making a plain
+outbound HTTPS request from the server to a public IP-echo service
+(api.ipify.org), the same way the eBay request itself goes out, so this should
+reflect the same egress path eBay sees rather than being specific to that one
+lookup. Consistent across three separate runs.
 
 **Three timestamped examples**, each run via both Node's `fetch` and a raw `curl`
 process (two independent HTTP clients) from the server itself, one right after
@@ -63,12 +68,11 @@ content-type: application/json
 content-length: 135
 ```
 
-These headers show the request reaches eBay's real edge (Akamai) and backend
-(Envoy processed each request in 41-66ms before rejecting it) — so this isn't a
-dropped connection or something blocked before leaving your network. The requests
-reach eBay's edge and return a consistent HTTP 500 only when sent from this hosting
-account; the cause may involve source-IP reputation, routing, or an eBay-side
-account/security rule — I don't have enough visibility to say which.
+These headers indicate that the request reached eBay's edge and received a
+structured HTTP response; they do not by themselves identify the cause. That
+consistent HTTP 500 only happens when the request is sent from this hosting
+account — the cause may involve source-IP reputation, routing, or an eBay-side
+account/security rule; I don't have enough visibility to say which.
 
 **My questions for you:**
 
@@ -83,7 +87,6 @@ Happy to run more tests or provide additional detail — I have a diagnostic too
 built into the app that reproduces this on demand from the server itself, so
 turnaround on any follow-up test is quick.
 
-App path: `/home/u661531966/domains/ops.rebootytreasures.com/hbuilds/current/nodejs`
 Domain: `ops.rebootytreasures.com`
 
 Thanks,
