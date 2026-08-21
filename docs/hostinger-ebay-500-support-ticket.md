@@ -1,21 +1,3 @@
-# Hostinger support ticket — eBay token endpoint 500s from this hosting account
-
-Status: **revised, ready to submit** — updated per Hostinger support's follow-up
-request for multiple timestamped examples, non-sensitive headers, confirmed
-cross-network success, and the outbound-IP/dedicated-IP questions. Language around
-cause (IP reputation vs. routing vs. an eBay-side rule) was then softened to
-possibilities rather than conclusions, per Hostinger's second reply. Third reply:
-toned down the subject line and the "headers show it reached the backend" claim,
-dropped the server filesystem path, and noted the outbound-IP methodology. Fourth
-reply: precision fixes — "all six requests tested" instead of "every request",
-"test batches" instead of "examples" since each batch shares one timestamp across
-its fetch+curl pair, and a shorter, more direct outbound-IP sentence. Submitted
-directly into the Hostinger support chat, not as a separate ticket/attachment.
-
-Copy everything below the line into the Hostinger support ticket reply.
-
----
-
 **Subject:** Outbound requests to api.ebay.com return HTTP 500 from this hosting
 account
 
