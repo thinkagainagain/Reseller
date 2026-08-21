@@ -68,6 +68,19 @@ router.post('/sync/diagnose', async (req, res) => {
 
   const basicAuth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
 
+  // What outbound IP this server actually presents to the internet -- useful
+  // for the Hostinger ticket (asking about a dedicated IP) without having to
+  // rely on Hostinger to look it up. A plain public IP-echo service, no auth,
+  // nothing sensitive in the request or response.
+  let outboundIp = null;
+  try {
+    const ipRes = await fetch('https://api.ipify.org?format=json');
+    const ipData = await ipRes.json();
+    outboundIp = ipData.ip;
+  } catch (err) {
+    outboundIp = `lookup failed: ${err.message}`;
+  }
+
   const nodeResult = {};
   try {
     const body = new URLSearchParams({
@@ -128,7 +141,7 @@ router.post('/sync/diagnose', async (req, res) => {
   }
 
   res.render('sync/sync-diagnose', {
-    result: { timestamp, hostname, nodeVersion, nodeResult, curlResult },
+    result: { timestamp, hostname, nodeVersion, outboundIp, nodeResult, curlResult },
     error: null,
   });
 });
