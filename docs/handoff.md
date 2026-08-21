@@ -1,6 +1,6 @@
 # Session handoff
 
-Last updated: 2026-08-20. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-08-21. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
@@ -26,11 +26,20 @@ sessions, first surfacing during the "Ready to Publish" push-to-eBay work.
   specifically (shared-hosting IP ranges commonly get flagged by anti-abuse
   heuristics on API providers) — not a Hostinger network fault, and not something
   fixable in this app's code.
+- Confirmed outbound IP for the hosting account: `212.1.209.194` (captured live via
+  the diagnostic tool, consistent across three separate runs).
+- Hostinger support's first reply (received 2026-08-20/21) agreed the request
+  reaches eBay and eBay is what returns the 500, but called the IP-reputation theory
+  unproven and asked for: timestamps of several failed requests, non-sensitive
+  headers/status/body, confirmation of cross-network success, and an explicit ask
+  about the account's outbound IP / dedicated IP availability. All of that is now in
+  the revised ticket (see below).
 
-**Diagnostic tool** (built this session): `/sync/diagnose` on the live site — runs
-the token request via both `fetch` and `curl` from wherever the server actually is,
-shows sanitized status/headers/body for both, safe to copy into a support ticket.
-Route: [src/routes/sync.js](../src/routes/sync.js). View:
+**Diagnostic tool** (built this session, extended in the same session): `/sync/diagnose`
+on the live site — runs the token request via both `fetch` and `curl` from wherever
+the server actually is, plus a live outbound-IP check (via api.ipify.org), shows
+sanitized status/headers/body for both, safe to copy into a support ticket. Route:
+[src/routes/sync.js](../src/routes/sync.js). View:
 [src/views/sync/sync-diagnose.ejs](../src/views/sync/sync-diagnose.ejs).
 
 **Workaround in use:** run sync/publish actions from a local machine (or Claude
@@ -46,17 +55,19 @@ the problem even without eBay's involvement.
 
 ## Immediate next step
 
-A Hostinger support ticket is drafted and ready to submit at
-[docs/hostinger-ebay-500-support-ticket.md](hostinger-ebay-500-support-ticket.md).
-**Lucas needs to submit this himself** — Claude doesn't log into third-party
-accounts or enter credentials, so this can't be done end-to-end by the agent. Once
-submitted, the next session should pick up by checking whether Hostinger has
-responded and what they said.
+A revised Hostinger support ticket reply is ready to submit at
+[docs/hostinger-ebay-500-support-ticket.md](hostinger-ebay-500-support-ticket.md) —
+this is the reply to Hostinger's follow-up questions (see above), with three real
+timestamped fetch+curl runs, the confirmed outbound IP, and the account name
+corrected to "Sean_Lucas". **This needs to be submitted by hand** — Claude doesn't
+log into third-party support portals or enter credentials. Once sent, the next
+session should pick up by checking whether Hostinger has replied again (particularly
+on the dedicated-IP question, which is the most likely actual fix if the
+IP-reputation theory holds).
 
 The older draft at the repo root (`hostinger-support-ticket-draft.txt`, untracked,
-not committed) is now superseded by the docs/ version and can be deleted once the
-new one is submitted — it made a claim (missing `x-ebay-c-request-id` header) that
-the newer curl-comparison evidence doesn't actually support.
+not committed) is now fully superseded and safe to delete — it predates both the
+curl-comparison test and Hostinger's own follow-up questions.
 
 ## Other recent work (probably not relevant to the above, but recent)
 
