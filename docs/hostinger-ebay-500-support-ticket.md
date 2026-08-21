@@ -2,7 +2,9 @@
 
 Status: **revised, ready to submit** — updated per Hostinger support's follow-up
 request for multiple timestamped examples, non-sensitive headers, confirmed
-cross-network success, and the outbound-IP/dedicated-IP questions.
+cross-network success, and the outbound-IP/dedicated-IP questions. Language around
+cause (IP reputation vs. routing vs. an eBay-side rule) was then softened to
+possibilities rather than conclusions, per Hostinger's second reply.
 
 Copy everything below the line into the Hostinger support ticket reply.
 
@@ -63,18 +65,19 @@ content-length: 135
 
 These headers show the request reaches eBay's real edge (Akamai) and backend
 (Envoy processed each request in 41-66ms before rejecting it) — so this isn't a
-dropped connection or something blocked before leaving your network. eBay's backend
-is deliberately rejecting these requests, specifically when they originate from this
-account.
+dropped connection or something blocked before leaving your network. The requests
+reach eBay's edge and return a consistent HTTP 500 only when sent from this hosting
+account; the cause may involve source-IP reputation, routing, or an eBay-side
+account/security rule — I don't have enough visibility to say which.
 
 **My questions for you:**
 
 1. Can you confirm this is in fact the account's outbound IP for external HTTPS
    requests (`212.1.209.194`), and whether it's shared across other Hostinger
    customers?
-2. Is a static or dedicated outbound IP available for this hosting plan? If eBay is
-   reacting to IP reputation on a shared range, a clean dedicated IP would likely
-   resolve this without needing any cooperation from eBay at all.
+2. Is a static or dedicated outbound IP available for this hosting plan? I'm not
+   assuming this would fix it — but if source-IP reputation turns out to be a factor,
+   it seems like a reasonable thing to rule in or out.
 
 Happy to run more tests or provide additional detail — I have a diagnostic tool
 built into the app that reproduces this on demand from the server itself, so
