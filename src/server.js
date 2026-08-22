@@ -16,7 +16,7 @@ const syncRoutes = require('./routes/sync');
 const salesRoutes = require('./routes/sales');
 const skuExportRoutes = require('./routes/skuExport');
 const readyToPublishRoutes = require('./routes/readyToPublish');
-const { UPLOADS_ROOT } = require('./lib/uploadsDir');
+const storage = require('./lib/storage');
 
 const app = express();
 
@@ -34,10 +34,14 @@ app.get('/healthz', (req, res) => res.status(200).send('ok'));
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
-// Served separately from UPLOADS_ROOT (which lives outside the app's own
-// source tree in production) rather than as part of public/ -- see
-// src/lib/uploadsDir.js for why.
-app.use('/uploads', express.static(UPLOADS_ROOT));
+// Proxied through the storage abstraction (local disk or R2, see
+// src/lib/storage.js) rather than served as a static directory, so the same
+// route works whichever backend is active without the rest of the app caring.
+app.get('/uploads/:sku/:filename', (req, res) => {
+  storage.streamObject(`${req.params.sku}/${req.params.filename}`, res).catch(() => {
+    if (!res.headersSent) res.status(404).end();
+  });
+});
 
 // Default express-session store is in-process memory -- fine for local SQLite
 // dev (always single-instance, throwaway data) but loses every session on

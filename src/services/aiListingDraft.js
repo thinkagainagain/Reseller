@@ -1,9 +1,8 @@
-const fs = require('fs/promises');
 const path = require('path');
 const config = require('../config');
 const db = require('../db');
 const { CATEGORIES, CONDITIONS } = require('../lib/constants');
-const { UPLOADS_ROOT } = require('../lib/uploadsDir');
+const storage = require('../lib/storage');
 const { getAppAccessToken } = require('./ebayAuth');
 const { getCategorySuggestion } = require('./ebayTaxonomy');
 
@@ -65,9 +64,11 @@ async function generateListingDraft(sku, clarification) {
   const photoUrl = `${appUrl}${photo.file_path}`;
   const lensMatches = await fetchLensMatches(photoUrl);
 
-  const absolutePath = path.join(UPLOADS_ROOT, path.relative('/uploads', photo.file_path));
-  const fileBuffer = await fs.readFile(absolutePath);
-  const ext = path.extname(absolutePath).toLowerCase();
+  // photo.file_path is "/uploads/<sku>/<filename>" -- strip the leading
+  // /uploads/ to get the storage key.
+  const storageKey = photo.file_path.replace(/^\/uploads\//, '');
+  const fileBuffer = await storage.readObject(storageKey);
+  const ext = path.extname(storageKey).toLowerCase();
   const mimeType = MIME_BY_EXT[ext] || 'image/jpeg';
   const base64Data = fileBuffer.toString('base64');
 

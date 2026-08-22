@@ -29,6 +29,19 @@ module.exports = {
   uploads: {
     dir: process.env.REBOOTY_UPLOADS_DIR,
   },
+  storage: {
+    // Auto-selects R2 once bucket/credentials are present; otherwise falls
+    // back to local disk (REBOOTY_UPLOADS_DIR, or public/uploads for plain
+    // `npm run dev`). A container's own filesystem doesn't survive redeploys
+    // or scale past one instance, so R2 is required for Render.
+    driver: process.env.R2_BUCKET ? 'r2' : 'local',
+    r2: {
+      endpoint: process.env.R2_ENDPOINT,
+      accessKeyId: process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      bucket: process.env.R2_BUCKET,
+    },
+  },
   ebay: {
     clientId: process.env.EBAY_CLIENT_ID,
     clientSecret: process.env.EBAY_CLIENT_SECRET,

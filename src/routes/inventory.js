@@ -1,10 +1,8 @@
 const express = require('express');
-const fs = require('fs/promises');
-const path = require('path');
 const db = require('../db');
 const constants = require('../lib/constants');
 const { generateListingDraft } = require('../services/aiListingDraft');
-const { UPLOADS_ROOT } = require('../lib/uploadsDir');
+const storage = require('../lib/storage');
 
 const router = express.Router();
 
@@ -168,7 +166,7 @@ router.post('/inventory/:sku/delete', async (req, res) => {
     await trx('inventory').where({ sku }).del();
   });
 
-  await fs.rm(path.join(UPLOADS_ROOT, sku), { recursive: true, force: true }).catch(() => {});
+  await storage.deleteByPrefix(sku);
 
   const redirectMap = {
     queue: '/intake/queue',
