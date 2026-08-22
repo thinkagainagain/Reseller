@@ -56,7 +56,7 @@ router.post('/sync/diagnose', async (req, res) => {
   const CLIENT_ID = config.ebay.clientId;
   const CLIENT_SECRET = config.ebay.clientSecret;
   const REFRESH_TOKEN = config.ebay.refreshToken;
-  const TOKEN_URL = 'https://api.ebay.com/identity/v1/oauth2/token';
+  const TOKEN_URL = `${config.ebay.apiBase}/identity/v1/oauth2/token`;
   const SCOPE = 'https://api.ebay.com/oauth/api_scope/sell.inventory.readonly';
 
   if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {

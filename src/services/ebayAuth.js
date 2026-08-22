@@ -4,7 +4,7 @@ const CLIENT_ID = config.ebay.clientId;
 const CLIENT_SECRET = config.ebay.clientSecret;
 const REFRESH_TOKEN = config.ebay.refreshToken;
 
-const TOKEN_URL = 'https://api.ebay.com/identity/v1/oauth2/token';
+const TOKEN_URL = `${config.ebay.apiBase}/identity/v1/oauth2/token`;
 
 async function getAccessToken(scopes) {
   if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {

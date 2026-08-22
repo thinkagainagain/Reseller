@@ -1,4 +1,6 @@
-const TAXONOMY_URL = 'https://api.ebay.com/commerce/taxonomy/v1';
+const config = require('../config');
+
+const TAXONOMY_URL = `${config.ebay.apiBase}/commerce/taxonomy/v1`;
 const CATEGORY_TREE_ID = '0'; // EBAY_US -- confirmed via get_default_category_tree_id
 
 async function getCategorySuggestion(appAccessToken, query) {

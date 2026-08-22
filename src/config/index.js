@@ -31,6 +31,13 @@ module.exports = {
     devId: process.env.EBAY_DEV_ID,
     refreshToken: process.env.EBAY_REFRESH_TOKEN,
     env: process.env.EBAY_ENV || 'production',
+    // Every eBay API host used to be hardcoded to production across the
+    // service files below, so EBAY_ENV=sandbox had no actual effect on which
+    // host was called. This is the single place that decision is made now.
+    apiBase:
+      (process.env.EBAY_ENV || 'production') === 'sandbox'
+        ? 'https://api.sandbox.ebay.com'
+        : 'https://api.ebay.com',
     paymentPolicyId: process.env.EBAY_PAYMENT_POLICY_ID,
     returnPolicyId: process.env.EBAY_RETURN_POLICY_ID,
     fulfillmentPolicyId: process.env.EBAY_FULFILLMENT_POLICY_ID,

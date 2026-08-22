@@ -1,9 +1,10 @@
 const db = require('../db');
+const config = require('../config');
 const nextSku = require('../lib/nextSku');
 const { getAccessToken } = require('./ebayAuth');
 const { getActiveListings } = require('./ebayTradingApi');
 
-const FULFILLMENT_ORDER_URL = 'https://api.ebay.com/sell/fulfillment/v1/order';
+const FULFILLMENT_ORDER_URL = `${config.ebay.apiBase}/sell/fulfillment/v1/order`;
 const ORDER_LOOKBACK_DAYS = 3;
 const ORDER_PAGE_LIMIT = 50;
 

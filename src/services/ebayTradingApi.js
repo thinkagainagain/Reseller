@@ -1,6 +1,7 @@
 const { XMLParser } = require('fast-xml-parser');
+const config = require('../config');
 
-const TRADING_API_URL = 'https://api.ebay.com/ws/api.dll';
+const TRADING_API_URL = `${config.ebay.apiBase}/ws/api.dll`;
 const ENTRIES_PER_PAGE = 100;
 
 const parser = new XMLParser();
