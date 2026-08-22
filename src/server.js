@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+const { Pool } = require('pg');
 
 const config = require('./config');
 const db = require('./db');
@@ -33,8 +35,23 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // src/lib/uploadsDir.js for why.
 app.use('/uploads', express.static(UPLOADS_ROOT));
 
+// Default express-session store is in-process memory -- fine for local SQLite
+// dev (always single-instance, throwaway data) but loses every session on
+// each restart/redeploy in production. On Postgres, back sessions with the
+// same database instead (table created by migration 013, not runtime DDL, so
+// concurrent instances booting together can't race on table creation).
+const sessionStore =
+  config.db.client === 'pg'
+    ? new pgSession({
+        pool: new Pool({ connectionString: config.db.url, ssl: { rejectUnauthorized: false } }),
+        tableName: 'session',
+        createTableIfMissing: false,
+      })
+    : undefined;
+
 app.use(
   session({
+    store: sessionStore,
     secret: config.app.sessionSecret,
     resave: false,
     saveUninitialized: false,
