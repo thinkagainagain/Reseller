@@ -1,0 +1,41 @@
+# Local-only verification stack -- not used by Render, which builds the same
+# Dockerfile directly. Nothing here talks to production; db is a disposable
+# local Postgres and uploads land in a named volume, not real object storage.
+services:
+  app:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      DB_CLIENT: pg
+      DATABASE_URL: postgres://postgres:postgres@db:5432/rebooty_dev
+      DB_SSL: 'false'
+      SESSION_SECRET: local-docker-secret
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin
+      APP_PUBLIC_URL: http://localhost:3000
+      REBOOTY_UPLOADS_DIR: /data/uploads
+      EBAY_ENV: sandbox
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rebooty_dev
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db-data:
+  uploads:

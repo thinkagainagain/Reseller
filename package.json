@@ -4,6 +4,9 @@
   "private": true,
   "description": "ReBooty Treasures reselling ops app (intake, inventory, eBay sync, dashboard)",
   "main": "src/server.js",
+  "engines": {
+    "node": ">=24.0.0 <25.0.0"
+  },
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",

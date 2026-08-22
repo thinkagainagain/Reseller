@@ -25,7 +25,7 @@ const dbConfig =
         client: 'pg',
         connection: {
           connectionString: config.db.url,
-          ssl: { rejectUnauthorized: false },
+          ssl: config.db.ssl ? { rejectUnauthorized: false } : false,
         },
       }
     : {

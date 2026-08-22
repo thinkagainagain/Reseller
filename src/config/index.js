@@ -21,6 +21,10 @@ module.exports = {
     client: process.env.DB_CLIENT || 'better-sqlite3',
     file: process.env.DB_FILE || './data/rebooty.sqlite3',
     url: process.env.DATABASE_URL,
+    // Supabase (and Render/managed Postgres generally) requires SSL; a local
+    // docker-compose Postgres doesn't support it at all. Defaults on since
+    // every real deployment needs it -- set DB_SSL=false for local Docker.
+    ssl: process.env.DB_SSL !== 'false',
   },
   uploads: {
     dir: process.env.REBOOTY_UPLOADS_DIR,

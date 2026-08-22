@@ -28,6 +28,10 @@ app.set('views', path.join(__dirname, 'views'));
 // even though the HTML (rendered fresh per-request) is already current.
 app.locals.cssVersion = fs.statSync(path.join(__dirname, '..', 'public', 'css', 'style.css')).mtimeMs;
 
+// No DB/session dependency -- must stay reachable during migrate-on-boot and
+// answer instantly for a hosting platform's health check.
+app.get('/healthz', (req, res) => res.status(200).send('ok'));
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 // Served separately from UPLOADS_ROOT (which lives outside the app's own
@@ -43,7 +47,10 @@ app.use('/uploads', express.static(UPLOADS_ROOT));
 const sessionStore =
   config.db.client === 'pg'
     ? new pgSession({
-        pool: new Pool({ connectionString: config.db.url, ssl: { rejectUnauthorized: false } }),
+        pool: new Pool({
+          connectionString: config.db.url,
+          ssl: config.db.ssl ? { rejectUnauthorized: false } : false,
+        }),
         tableName: 'session',
         createTableIfMissing: false,
       })
