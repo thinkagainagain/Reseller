@@ -1,6 +1,6 @@
 # Session handoff
 
-Last updated: 2026-08-22. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-08-24. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
@@ -36,21 +36,41 @@ without env vars Hostinger doesn't have set):
   photos, which only runs in Phase 6 once a prod bucket exists.
 - Docker Desktop is installed and working on the user's machine (via WSL2).
 
-**Not yet done — pick up here next**: Phase 4 (provision staging) onward.
-Concretely, still need:
-1. New Supabase project for staging (`rebooty-ops-staging`) — separate from
-   prod, so staging never touches real financial/inventory data.
-2. Second R2 bucket (`rebooty-uploads-prod`) — only `rebooty-uploads-staging`
-   exists so far.
-3. eBay Sandbox app registration + one-time OAuth consent flow to get a
-   sandbox `EBAY_REFRESH_TOKEN`, plus sandbox business policy IDs.
-4. `git checkout -b staging`, push it.
-5. `render.yaml` Blueprint defining both services (not written yet — nothing
-   is deployed to Render at all yet, this is still ahead of us).
-6. Render account signup, deploy staging, verify end-to-end including a real
-   eBay Sandbox publish.
-7. Then Phase 6-8: provision production, migrate the real photos, verify
-   against a temporary Render URL, cut over DNS.
+**Phase 4 (provision staging) — in progress, picked back up 2026-08-24:**
+- [x] `render.yaml` Blueprint written (both services, Docker-based,
+      branch-gated) and committed to `main` (`4140f0e`).
+- [x] Local `staging` branch created off that commit — **not pushed to
+      origin yet**.
+- [x] New Supabase project `rebooty-ops-staging` created (separate from prod).
+      Use the **Session pooler** connection string, not "Direct connection" —
+      the direct hostname is IPv6-only and doesn't resolve on this network/
+      Node setup (`ENOTFOUND`). Pooler string format:
+      `postgresql://postgres.<ref>:<password>@aws-0-us-east-1.pooler.supabase.com:5432/postgres`.
+      All 13 migrations + both seeds (`platform_fees`, `admin_user`) run and
+      verified clean against it locally. Staging admin login seeded as
+      `staging-admin` (password generated this session, stored only in the
+      user's own notes / will go straight into Render's secret fields, not
+      committed anywhere).
+- [x] eBay Sandbox keyset captured: `Client ID`, `Client Secret`, `Dev ID`
+      (same eBay dev account as prod, sandbox keyset shown alongside it —
+      no new registration needed).
+- [ ] **Pick up here next**: sandbox `EBAY_REFRESH_TOKEN` + sandbox business
+      policy IDs, via a one-time three-legged OAuth consent flow. Needs a
+      RuName (eBay Redirect URL name, under the Sandbox keyset's "User
+      Tokens" tab) and a Sandbox test user (Sandbox → Test User Tool) from
+      the user, then Claude builds the consent URL, user logs in/consents
+      themselves, pastes back the redirect URL's `code` param, Claude
+      exchanges it for tokens and fetches policy IDs via `GetUserPreferences`
+      against `api.sandbox.ebay.com`.
+- [ ] Second R2 bucket (`rebooty-uploads-prod`) — only
+      `rebooty-uploads-staging` exists so far (that's Phase 6, not needed yet).
+- [ ] Push `staging` branch to origin (holding off until secrets are ready to
+      enter, so the Render service isn't sitting half-configured).
+- [ ] Render account signup (needs billing for paid Starter tier + Static
+      Outbound IP), deploy staging from `render.yaml`, fill in secrets,
+      verify end-to-end including a real eBay Sandbox publish.
+- [ ] Then Phase 6-8: provision production, migrate the real photos, verify
+      against a temporary Render URL, cut over DNS.
 
 See the plan file for full detail on each of these — don't re-derive the
 reasoning, it's all there (why R2 not a persistent disk, why Sandbox not a
