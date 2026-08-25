@@ -1,3 +1,8 @@
+# The rebooty-ops-production service is intentionally omitted for now -- it
+# belongs to Phase 6 of the migration plan (needs its own R2 bucket, the real
+# photo migration run, real business policy IDs), not Phase 4. Adding it back
+# here and re-syncing this Blueprint is the first step of that phase. See
+# docs/handoff.md for full context.
 services:
   - type: web
     name: rebooty-ops-staging
@@ -18,62 +23,6 @@ services:
         value: rebooty-uploads-staging
       - key: APP_PUBLIC_URL
         value: https://rebooty-ops-staging.onrender.com
-      - key: DATABASE_URL
-        sync: false
-      - key: SESSION_SECRET
-        sync: false
-      - key: R2_ENDPOINT
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: EBAY_CLIENT_ID
-        sync: false
-      - key: EBAY_CLIENT_SECRET
-        sync: false
-      - key: EBAY_DEV_ID
-        sync: false
-      - key: EBAY_REFRESH_TOKEN
-        sync: false
-      - key: EBAY_PAYMENT_POLICY_ID
-        sync: false
-      - key: EBAY_RETURN_POLICY_ID
-        sync: false
-      - key: EBAY_FULFILLMENT_POLICY_ID
-        sync: false
-      - key: EBAY_SHIP_FROM_POSTAL_CODE
-        sync: false
-      - key: EBAY_SHIP_FROM_COUNTRY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: SERPAPI_KEY
-        sync: false
-      - key: ADMIN_USERNAME
-        sync: false
-      - key: ADMIN_PASSWORD
-        sync: false
-
-  - type: web
-    name: rebooty-ops-production
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    branch: main
-    plan: starter
-    healthCheckPath: /healthz
-    envVars:
-      - key: DB_CLIENT
-        value: pg
-      - key: DB_SSL
-        value: "true"
-      - key: EBAY_ENV
-        value: production
-      - key: R2_BUCKET
-        value: rebooty-uploads-prod
-      - key: APP_PUBLIC_URL
-        value: https://rebooty-ops-production.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: SESSION_SECRET
