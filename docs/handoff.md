@@ -1,6 +1,6 @@
 # Session handoff
 
-Last updated: 2026-08-24. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-08-25. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
@@ -36,11 +36,15 @@ without env vars Hostinger doesn't have set):
   photos, which only runs in Phase 6 once a prod bucket exists.
 - Docker Desktop is installed and working on the user's machine (via WSL2).
 
-**Phase 4 (provision staging) — in progress, picked back up 2026-08-24:**
-- [x] `render.yaml` Blueprint written (both services, Docker-based,
-      branch-gated) and committed to `main` (`4140f0e`).
-- [x] Local `staging` branch created off that commit — **not pushed to
-      origin yet**.
+**Phases 4 and 5 are now DONE** (staging fully provisioned, deployed, and
+verified end-to-end). Picked up and completed in one session, 2026-08-24
+through 2026-08-25:
+- [x] `render.yaml` Blueprint written and committed to `main` (`4140f0e`),
+      later trimmed to just the staging service (`e006d1e`) so Phase 4 setup
+      didn't force filling in placeholder production secrets — see the
+      comment at the top of `render.yaml` for how to add production back.
+- [x] `staging` branch created and pushed to origin, tracking
+      `origin/staging`.
 - [x] New Supabase project `rebooty-ops-staging` created (separate from prod).
       Use the **Session pooler** connection string, not "Direct connection" —
       the direct hostname is IPv6-only and doesn't resolve on this network/
@@ -75,39 +79,40 @@ without env vars Hostinger doesn't have set):
       payment `6246729000`, return `6246730000`, fulfillment `6246728000`.
       Ship-from ZIP for staging: `32034` (same as prod — not sensitive).
       All eBay secrets given directly to the user, not stored in this repo.
-- [ ] Second R2 bucket (`rebooty-uploads-prod`) — only
-      `rebooty-uploads-staging` exists so far (that's Phase 6, not needed yet).
-- [ ] Push `staging` branch to origin (holding off until secrets are ready to
-      enter, so the Render service isn't sitting half-configured).
 - [x] Render account created, `rebooty-ops` Blueprint deployed from
-      `render.yaml` (staging service only -- production intentionally
-      trimmed out of the file until Phase 6, see the comment at the top of
-      `render.yaml`). Live at `https://rebooty-ops-staging.onrender.com`.
-- [x] **Phase 5 (staging verification) substantially done**: `/healthz` ok;
-      logged in as `staging-admin`, session persisted; uploaded a real photo
-      through the deployed app and confirmed byte-identical read-back
-      through the R2 proxy; ran a full sandbox `AddFixedPriceItem` publish
-      (item `110590242491`, confirmed `Active` via `GetItem`) -- this is the
-      first proof the whole OAuth + business-policy + Trading API pipeline
-      works against Render. That test item/listing was left in place
-      (SKU `RT-0001`, status `Scheduled`) as the working proof, same pattern
-      as the first real production listing.
+      `render.yaml` (staging service only). Live at
+      `https://rebooty-ops-staging.onrender.com`.
+- [x] **Phase 5 (staging verification) — all checks passed**:
+      - `/healthz` → `ok`.
+      - Logged in as `staging-admin`, session persisted.
+      - Uploaded a real photo through the deployed app, confirmed
+        byte-identical read-back through the R2 proxy.
+      - Ran a full sandbox `AddFixedPriceItem` publish (item `110590242491`,
+        confirmed `Active` via `GetItem`) — first proof the whole OAuth +
+        business-policy + Trading API pipeline works against Render. Left in
+        place (SKU `RT-0001`, status `Scheduled`) as the working proof, same
+        pattern as the first real production listing.
+      - Triggered a manual redeploy on Render, confirmed the session
+        survived it without re-login — proves Phase 0's persistent session
+        store specifically under Render (not just Docker locally).
       **Real finding surfaced along the way** (not a migration bug, already
       flagged in `src/lib/ebayConditionMap.js`'s comment): eBay's allowed
       `ConditionID` values and required item specifics (Size/Type/Color) are
       category-dependent -- a clothing category rejected `condition: 'Good'`
       and required a Size specific that a Mugs-category test item didn't.
       Worth remembering when testing/using clothing categories specifically.
-- [ ] **Pick up here next**: Phase 5's last item -- trigger a manual redeploy
-      on Render and confirm the session survives it (proves Phase 0's
-      persistent session store specifically under Render, not just Docker
-      locally). Then Phase 6 onward: add the production service back into
-      `render.yaml`, provision `rebooty-uploads-prod`, run
-      `migrateUploadsToR2.js --commit` against the real ~1300 Hostinger
-      photos, deploy production, verify against its temporary Render URL,
-      then cut over DNS.
-- [ ] Then Phase 6-8: provision production, migrate the real photos, verify
-      against a temporary Render URL, cut over DNS.
+- [ ] **Pick up here next**: Phase 6 (provision production) --
+      add the production service back into `render.yaml` (it was
+      deliberately trimmed out for the Phase 4 deploy, see the comment at
+      the top of that file), provision a new `rebooty-uploads-prod` R2
+      bucket, run `src/scripts/migrateUploadsToR2.js --commit` against the
+      real ~1300 photos pulled off Hostinger, deploy production from the
+      Blueprint with real secrets and `APP_PUBLIC_URL` pointed at its
+      *temporary* `onrender.com` URL (not the real domain yet -- see the
+      plan file's Phase 6 sequencing note on why). Then Phase 7 (verify
+      against that temporary URL, including the actual point of this whole
+      migration: confirming `/sync/diagnose` returns `200` from Render's
+      Static Outbound IP where Hostinger 500'd) and Phase 8 (DNS cutover).
 
 See the plan file for full detail on each of these — don't re-derive the
 reasoning, it's all there (why R2 not a persistent disk, why Sandbox not a
