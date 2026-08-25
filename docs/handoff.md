@@ -54,21 +54,35 @@ without env vars Hostinger doesn't have set):
 - [x] eBay Sandbox keyset captured: `Client ID`, `Client Secret`, `Dev ID`
       (same eBay dev account as prod, sandbox keyset shown alongside it —
       no new registration needed).
-- [ ] **Pick up here next**: sandbox `EBAY_REFRESH_TOKEN` + sandbox business
-      policy IDs, via a one-time three-legged OAuth consent flow. Needs a
-      RuName (eBay Redirect URL name, under the Sandbox keyset's "User
-      Tokens" tab) and a Sandbox test user (Sandbox → Test User Tool) from
-      the user, then Claude builds the consent URL, user logs in/consents
-      themselves, pastes back the redirect URL's `code` param, Claude
-      exchanges it for tokens and fetches policy IDs via `GetUserPreferences`
-      against `api.sandbox.ebay.com`.
+- [x] Sandbox `EBAY_REFRESH_TOKEN` obtained via three-legged OAuth consent
+      (RuName `Rebooty_Treasur-RebootyT-Resell-gianap`, scopes
+      `sell.inventory.readonly`, `sell.fulfillment.readonly`,
+      `sell.account`), verified working via a live `refresh_token` grant.
+      **Gotcha hit along the way**: the portal's built-in "Get a User Token
+      Here" quick-test box and the "Auth'n'Auth" branded sign-in link both
+      produce values that look superficially like what you need but aren't
+      an OAuth authorization code — only the second "Your branded eBay
+      Sandbox Sign In (**OAuth**)" link under "Get a Token from eBay via Your
+      Application" redirects with a real `?code=...` param usable for the
+      standard token exchange. Also: the auth code expires in ~5 minutes and
+      is single-use, so paste it back immediately.
+- [x] Sandbox business policies created via the Account API (the Sandbox
+      Business Policies UI doesn't work for test users — a known Sandbox
+      limitation). Required an explicit opt-in first:
+      `POST /sell/account/v1/program/opt_in {"programType":
+      "SELLING_POLICY_MANAGEMENT"}`, then `createPaymentPolicy`/
+      `createReturnPolicy`/`createFulfillmentPolicy`. Policy IDs obtained:
+      payment `6246729000`, return `6246730000`, fulfillment `6246728000`.
+      Ship-from ZIP for staging: `32034` (same as prod — not sensitive).
+      All eBay secrets given directly to the user, not stored in this repo.
 - [ ] Second R2 bucket (`rebooty-uploads-prod`) — only
       `rebooty-uploads-staging` exists so far (that's Phase 6, not needed yet).
 - [ ] Push `staging` branch to origin (holding off until secrets are ready to
       enter, so the Render service isn't sitting half-configured).
-- [ ] Render account signup (needs billing for paid Starter tier + Static
-      Outbound IP), deploy staging from `render.yaml`, fill in secrets,
-      verify end-to-end including a real eBay Sandbox publish.
+- [ ] **Pick up here next**: Render account signup (needs billing for paid
+      Starter tier + Static Outbound IP), deploy staging from `render.yaml`,
+      fill in all secrets collected above, verify end-to-end including a
+      real eBay Sandbox publish.
 - [ ] Then Phase 6-8: provision production, migrate the real photos, verify
       against a temporary Render URL, cut over DNS.
 
