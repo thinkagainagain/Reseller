@@ -79,10 +79,33 @@ without env vars Hostinger doesn't have set):
       `rebooty-uploads-staging` exists so far (that's Phase 6, not needed yet).
 - [ ] Push `staging` branch to origin (holding off until secrets are ready to
       enter, so the Render service isn't sitting half-configured).
-- [ ] **Pick up here next**: Render account signup (needs billing for paid
-      Starter tier + Static Outbound IP), deploy staging from `render.yaml`,
-      fill in all secrets collected above, verify end-to-end including a
-      real eBay Sandbox publish.
+- [x] Render account created, `rebooty-ops` Blueprint deployed from
+      `render.yaml` (staging service only -- production intentionally
+      trimmed out of the file until Phase 6, see the comment at the top of
+      `render.yaml`). Live at `https://rebooty-ops-staging.onrender.com`.
+- [x] **Phase 5 (staging verification) substantially done**: `/healthz` ok;
+      logged in as `staging-admin`, session persisted; uploaded a real photo
+      through the deployed app and confirmed byte-identical read-back
+      through the R2 proxy; ran a full sandbox `AddFixedPriceItem` publish
+      (item `110590242491`, confirmed `Active` via `GetItem`) -- this is the
+      first proof the whole OAuth + business-policy + Trading API pipeline
+      works against Render. That test item/listing was left in place
+      (SKU `RT-0001`, status `Scheduled`) as the working proof, same pattern
+      as the first real production listing.
+      **Real finding surfaced along the way** (not a migration bug, already
+      flagged in `src/lib/ebayConditionMap.js`'s comment): eBay's allowed
+      `ConditionID` values and required item specifics (Size/Type/Color) are
+      category-dependent -- a clothing category rejected `condition: 'Good'`
+      and required a Size specific that a Mugs-category test item didn't.
+      Worth remembering when testing/using clothing categories specifically.
+- [ ] **Pick up here next**: Phase 5's last item -- trigger a manual redeploy
+      on Render and confirm the session survives it (proves Phase 0's
+      persistent session store specifically under Render, not just Docker
+      locally). Then Phase 6 onward: add the production service back into
+      `render.yaml`, provision `rebooty-uploads-prod`, run
+      `migrateUploadsToR2.js --commit` against the real ~1300 Hostinger
+      photos, deploy production, verify against its temporary Render URL,
+      then cut over DNS.
 - [ ] Then Phase 6-8: provision production, migrate the real photos, verify
       against a temporary Render URL, cut over DNS.
 
