@@ -101,7 +101,7 @@ through 2026-08-25:
       category-dependent -- a clothing category rejected `condition: 'Good'`
       and required a Size specific that a Mugs-category test item didn't.
       Worth remembering when testing/using clothing categories specifically.
-- [ ] **Pick up here next**: Phase 6 (provision production) --
+- [ ] **Pick up here next (new session)**: Phase 6 (provision production) --
       add the production service back into `render.yaml` (it was
       deliberately trimmed out for the Phase 4 deploy, see the comment at
       the top of that file), provision a new `rebooty-uploads-prod` R2
@@ -113,6 +113,16 @@ through 2026-08-25:
       against that temporary URL, including the actual point of this whole
       migration: confirming `/sync/diagnose` returns `200` from Render's
       Static Outbound IP where Hostinger 500'd) and Phase 8 (DNS cutover).
+
+**New wrinkle for Phase 8 specifically (raised 2026-08-25, not yet decided)**:
+user is now considering buying a new, catchier domain/brand name rather than
+keeping `ops.rebootytreasures.com`, motivated by feeling the app is turning
+into a real product with market fit ("the intake fills a gap in the reseller
+community"), not just an internal tool. This doesn't block Phases 6-7 at all
+(both use Render's own temporary `onrender.com` URL regardless). Only
+Phase 8's "point DNS at Render" step depends on which domain is final --
+confirm with the user which domain to actually cut over to before executing
+Phase 8, don't assume `ops.rebootytreasures.com` by default anymore.
 
 See the plan file for full detail on each of these — don't re-derive the
 reasoning, it's all there (why R2 not a persistent disk, why Sandbox not a
