@@ -17,7 +17,12 @@ WORKDIR /app
 # token endpoint behaves the same regardless of client. That diagnostic is
 # what verifies this migration actually fixed the Hostinger/eBay networking
 # issue, so it has to work in the deployed image, not just locally.
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# ca-certificates is only a Recommends of curl on Debian, not a hard
+# dependency -- --no-install-recommends skips it, leaving curl with no CA
+# bundle to validate TLS against (error 77). Node's fetch doesn't hit this
+# since it bundles its own root certificates, which is why fetch worked here
+# while curl failed with an unexplained TLS error.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
