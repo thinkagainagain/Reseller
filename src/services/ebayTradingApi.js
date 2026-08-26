@@ -24,6 +24,14 @@ function asArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+// eBay's GalleryURL comes back at thumbnail size (s-l140) by default; the
+// same EPS-hosted image is available at larger sizes by swapping that size
+// token, so upsize it here for use as the item's primary photo in our app.
+function upsizeGalleryUrl(url) {
+  if (!url) return null;
+  return url.replace(/s-l\d+/, 's-l500');
+}
+
 function normalizeItem(item) {
   return {
     itemId: String(item.ItemID),
@@ -32,6 +40,7 @@ function normalizeItem(item) {
     price: Number(item.SellingStatus?.CurrentPrice ?? item.BuyItNowPrice ?? 0),
     quantityAvailable: Number(item.QuantityAvailable ?? item.Quantity ?? 1),
     startTime: item.ListingDetails?.StartTime,
+    galleryUrl: upsizeGalleryUrl(item.PictureDetails?.GalleryURL),
   };
 }
 

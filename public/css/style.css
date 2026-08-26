@@ -199,6 +199,18 @@ nav a {
   margin-bottom: 0.5rem;
 }
 
+.thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.preview img {
+  max-width: 240px;
+  border-radius: 6px;
+}
+
 .sku {
   font-weight: 600;
   color: #444;

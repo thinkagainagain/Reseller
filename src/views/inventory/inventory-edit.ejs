@@ -15,6 +15,12 @@
       <div class="error"><%= error %></div>
     <% } %>
 
+    <% if (photoUrl) { %>
+      <div class="preview">
+        <img src="<%= photoUrl %>" alt="<%= item.sku %>">
+      </div>
+    <% } %>
+
     <% if (aiDraft) { %>
       <div class="card" style="color:#b7791f;font-weight:600;">AI research below — not yet saved. Review, add a clarification note and re-run if something's off, or Save when it looks right.</div>
     <% } %>

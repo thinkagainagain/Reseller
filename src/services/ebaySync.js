@@ -67,6 +67,7 @@ async function syncActiveListings() {
           first_listed_date: existing.first_listed_date || toDateOnly(listing.startTime),
           date_listed: toDateOnly(listing.startTime) || existing.date_listed,
           bin_location: shouldBackfillBinLocation ? listing.sku : existing.bin_location,
+          ebay_primary_photo_url: listing.galleryUrl || existing.ebay_primary_photo_url,
           updated_at: db.fn.now(),
         });
       updated += 1;
@@ -81,6 +82,7 @@ async function syncActiveListings() {
         first_listed_date: toDateOnly(listing.startTime),
         date_listed: toDateOnly(listing.startTime),
         date_acquired: null,
+        ebay_primary_photo_url: listing.galleryUrl || null,
         // eBay's existing Custom Label wasn't ours -- it's the seller's old
         // location code from before this app existed. Keep it as a bin
         // location rather than discarding it; our own sku above is the new

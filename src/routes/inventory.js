@@ -48,9 +48,11 @@ router.get('/inventory/:sku/edit', async (req, res) => {
   const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
   const returnTo = returnMap[req.query.from] || 'inventory';
 
-  const hasPhoto = Boolean(await db('intake_photos').where({ sku: item.sku }).first());
+  const photo = await db('intake_photos').where({ sku: item.sku }).orderBy('id', 'asc').first();
+  const hasPhoto = Boolean(photo);
+  const photoUrl = item.ebay_primary_photo_url || (photo ? photo.file_path : null);
 
-  res.render('inventory/inventory-edit', { item, constants, returnTo, hasPhoto, aiDraft: false, error: null });
+  res.render('inventory/inventory-edit', { item, constants, returnTo, hasPhoto, photoUrl, aiDraft: false, error: null });
 });
 
 router.post('/inventory/:sku/edit', async (req, res) => {
@@ -115,7 +117,9 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
 
   const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
   const returnTo = returnMap[return_to] || 'inventory';
-  const hasPhoto = Boolean(await db('intake_photos').where({ sku }).first());
+  const photo = await db('intake_photos').where({ sku }).orderBy('id', 'asc').first();
+  const hasPhoto = Boolean(photo);
+  const photoUrl = item.ebay_primary_photo_url || (photo ? photo.file_path : null);
 
   try {
     const draft = await generateListingDraft(sku, clarification?.trim() || null);
@@ -142,6 +146,7 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
       constants,
       returnTo,
       hasPhoto,
+      photoUrl,
       aiDraft: true,
       error: null,
     });
@@ -151,6 +156,7 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
       constants,
       returnTo,
       hasPhoto,
+      photoUrl,
       aiDraft: false,
       error: err.message,
     });
