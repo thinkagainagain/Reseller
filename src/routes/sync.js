@@ -110,6 +110,7 @@ router.post('/sync/diagnose', async (req, res) => {
   try {
     const args = [
       '-s',
+      '-S',
       '-i',
       '--max-time',
       '15',
