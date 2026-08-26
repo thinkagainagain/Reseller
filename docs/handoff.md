@@ -4,6 +4,72 @@ Last updated: 2026-08-26. This is a living "pick up here" doc — overwrite it (
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
+## eBay Publish/Sync session (2026-08-26) — code committed, deploy on hold
+
+Two commits landed on `staging` this session, **committed but deliberately not
+pushed or deployed** -- user wants to hold until doing a full production
+update + resync together, not have this land ahead of that.
+
+1. `2c68dea` -- **Sync eBay's primary listing photo back into inventory.**
+   New `inventory.ebay_primary_photo_url` column, populated during resync
+   from each active listing's `PictureDetails.GalleryURL` (eBay returns this
+   for free on every `GetMyeBaySelling` ActiveList item, no extra API calls
+   needed -- upsized from eBay's default `s-l140` thumbnail to `s-l500`).
+   Inventory list/edit pages now show it, falling back to the original
+   intake photo until an item's been synced. Motivation: sellers edit in
+   real studio photos directly on eBay after publish (see below), and the
+   app's own view was going stale against what buyers actually see.
+
+2. `08bd03b` -- **Fix sync misfiling real RT-#### SKUs into `bin_location`.**
+   Pre-existing bug (not introduced this session): `syncActiveListings()`'s
+   fallback for a listing that doesn't match any local row assumed eBay's
+   Custom Label was always a legacy pre-app location code, so it generated a
+   fresh SKU number and dumped the *real* Custom Label into `bin_location`
+   instead. Once RT-#### is genuinely our own scheme, that assumption
+   spawns a duplicate row with the real SKU buried in Bin/Loc. Reproduced
+   live (not hypothetical) via local testing -- see next section. Fix: a
+   Custom Label matching `/^RT-\d+$/i` is now used directly as the row's
+   real SKU rather than treated as a location code. **Confirmed clean on
+   production** as of this session (user checked -- no resync has run there
+   against the old buggy code recently enough to have hit it), so this is
+   preventative for prod, not a cleanup-needed situation there. The local
+   dev sqlite copy *did* have 17 rows corrupted this way (all from this
+   session's own test resyncs against stale local data, including one
+   genuine duplicate row for the same eBay item) -- deleted and
+   re-synced clean with the fixed code, confirmed via direct DB query.
+
+**Also discovered, unresolved, no code fix attempted:** eBay is silently
+ignoring `SchedulingInfo`/`StartTime` on `AddFixedPriceItem` for this
+account **despite an active Basic Store subscription** (which should be
+sufficient per eBay's docs -- store-tier was the leading theory and it's
+ruled out). Confirmed two ways: (1) the AddFixedPriceItemResponse's own
+`StartTime` came back as today's date instead of the +20-days-out date
+requested, and (2) a direct follow-up `GetMyeBaySelling` call moments later
+showed the item genuinely in the **Active** (live, purchasable) list, not
+Scheduled. Reproduced live twice: RT-1442 went live immediately with a
+placeholder photo and had to be manually deleted (eBay gives no way to edit
+the scheduled date or pause a listing -- only live or "End Listing"); RT-1444
+hit the same thing and the user chose to just edit it live on eBay instead
+(swapped in real studio photos directly through eBay's own editor -- this is
+what motivated the primary-photo-sync feature above, and was confirmed safe:
+`syncActiveListings()` never reads/writes photos, so it doesn't fight with
+manual eBay-side photo edits).
+
+**Open decision, not yet made:** since eBay's scheduling can't be trusted,
+`src/services/ebayPublish.js`'s `SCHEDULE_DAYS_OUT = 20` hold-and-edit model
+doesn't actually work as designed. Recommended direction (not yet built):
+stop depending on eBay-side scheduling entirely -- treat "Publish" as truly
+"goes live now," and move the real-photo editing window to *before* that
+button (require final photos in-app before an item can enter Ready to
+Publish), rather than after. Revisit next eBay-focused session.
+
+**Unrelated, still-open background task from a prior session** (`task_7048238f`,
+not touched this session): eBay's required Item Specifics vary by category.
+Hit again today -- RT-1444's category (mugs) required a "Type" specific that
+was blank, rejected with a clean pre-listing validation error, fixed by
+filling in "Mug" manually. Same reactive pattern as before: try the push,
+read eBay's exact error, fix, retry -- not worth pre-solving generically.
+
 ## Where things stand right now
 
 **Actively migrating off Hostinger to Render (Docker), with a staging/production
