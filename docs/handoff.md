@@ -1,6 +1,6 @@
 # Session handoff
 
-Last updated: 2026-08-25. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-08-26. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
@@ -101,18 +101,85 @@ through 2026-08-25:
       category-dependent -- a clothing category rejected `condition: 'Good'`
       and required a Size specific that a Mugs-category test item didn't.
       Worth remembering when testing/using clothing categories specifically.
-- [ ] **Pick up here next (new session)**: Phase 6 (provision production) --
-      add the production service back into `render.yaml` (it was
-      deliberately trimmed out for the Phase 4 deploy, see the comment at
-      the top of that file), provision a new `rebooty-uploads-prod` R2
-      bucket, run `src/scripts/migrateUploadsToR2.js --commit` against the
-      real ~1300 photos pulled off Hostinger, deploy production from the
-      Blueprint with real secrets and `APP_PUBLIC_URL` pointed at its
-      *temporary* `onrender.com` URL (not the real domain yet -- see the
-      plan file's Phase 6 sequencing note on why). Then Phase 7 (verify
-      against that temporary URL, including the actual point of this whole
-      migration: confirming `/sync/diagnose` returns `200` from Render's
-      Static Outbound IP where Hostinger 500'd) and Phase 8 (DNS cutover).
+**Phases 6 and 7 are now DONE** (production provisioned, deployed, and fully
+verified against its temporary Render URL). Completed 2026-08-26:
+- [x] R2 bucket `rebooty-uploads-prod` created and verified (write/read/
+      delete round-trip).
+- [x] Pulled the real uploads folder off Hostinger via SSH/SFTP (had to
+      enable SSH Access in hPanel first -- it showed disabled by default,
+      account's shell came back broken/`nologin` until toggled on). Turned
+      out to be far fewer files than the "~1300 photos" estimate in this
+      doc's earlier version -- only 68 files (matching 79 `intake_photos` DB
+      rows minus a handful missing/orphaned), since `REBOOTY_UPLOADS_DIR`
+      was only wired up somewhat recently; older items' photos were never
+      in a persistent location to begin with. All 68 migrated to
+      `rebooty-uploads-prod` and byte-verified.
+- [x] `render.yaml`'s production service added back in and deployed
+      (`4b19eec`). Real secrets entered directly in Render's dashboard
+      (found reusable prod eBay/Anthropic/SerpApi credentials already
+      sitting in a local `.env` from earlier Hostinger-workaround sessions
+      -- no re-provisioning needed there). Admin login: kept the existing
+      real Hostinger credentials as-is (these live in the `users` DB table,
+      not in env vars -- `ADMIN_USERNAME`/`ADMIN_PASSWORD` only matter for
+      one-time seed bootstrap, never for login itself).
+- [x] **Phase 7 verification -- all checks passed**, live at
+      `https://rebooty-ops-production.onrender.com`:
+      - `/healthz` → `ok`; all 13 migrations already clean against the real
+        prod Supabase DB (1436 inventory rows, confirmed real data).
+      - R2-backed photo proxy serves migrated photos correctly.
+      - **The actual point of this migration**: `/sync/diagnose` returns
+        `200` from both the `fetch` and `curl` clients, from Render's IP
+        `74.220.48.188` -- eBay's token endpoint no longer 500s.
+      - One real "Ready to Publish" push succeeded against **production**
+        eBay (not sandbox): SKU `RT-1442`, a real live listing.
+- **Static Outbound IP was investigated and deliberately skipped**: Render
+  prices it at ~$100/mo (requires the account's *workspace* plan to be
+  Team-tier, not just a bigger per-service instance size -- these are two
+  separate Render billing concepts, easy to conflate). Since the diagnostic
+  above already passed cleanly on Render's regular (non-static) IP, and the
+  original Hostinger problem was "shared-hosting IP with bad reputation"
+  rather than "needs a literal permanent IP," there's no evidence this is
+  needed. Revisit only if `/sync/diagnose` ever starts failing again with a
+  new IP after a future redeploy.
+
+**Three real bugs found and fixed during Phase 7 verification** (all
+deployed, none are migration-specific, all uncovered by actually exercising
+production for the first time):
+1. `/sync/diagnose`'s curl check ran with `-s` but not `-S`, silently
+   swallowing curl's own error text on failure whenever curl failed
+   (`dea7218`).
+2. The Docker runtime image installed `curl` with `--no-install-recommends`,
+   which skips `ca-certificates` (only a Recommends of curl on Debian, not a
+   hard dependency) -- left curl with no CA bundle at all, causing curl
+   error 77 ("error setting certificate file"). Node's `fetch` never hit
+   this since it bundles its own root certs independent of the OS (`2afc0d3`).
+3. `ANTHROPIC_API_KEY` as pasted into Render's dashboard had picked up a
+   stray non-Latin1 character (character code 8226, a bullet -- likely a
+   copy/paste artifact from how the value was originally shared), which made
+   every "Generate with AI" call throw `Cannot convert argument to a
+   ByteString` from `fetch()`'s header validation. Not a code bug -- fixed
+   by re-pasting the credential value cleanly in Render's UI.
+
+**One real bug found, not yet fixed** (flagged as a background task,
+`task_7048238f`, "Make eBay condition ID category-aware"): eBay's allowed
+`ConditionID` values are category-dependent, and `src/lib/ebayConditionMap.js`
+uses one static map for every category. Confirmed via a real publish failure:
+Collectibles > Mugs (category 261672) only accepts New/New other/Used --
+rejects the app's generic Good/Fair/Poor scale outright. Worked around for
+the one test listing by choosing a condition that happened to map to a valid
+ID; the real fix is querying eBay's Metadata API
+(`get_item_condition_policies`) per-category at publish time instead of
+guessing. Not urgent, but will keep recurring for restrictive categories
+until fixed.
+
+**Only remaining step: Phase 8 (DNS cutover)** -- see the "new wrinkle"
+section right below for the one open decision blocking it (domain name).
+Otherwise, follow the plan file's Phase 8 steps as written: update
+`APP_PUBLIC_URL` to the final domain, add the custom domain in Render,
+update DNS, immediately re-run the Phase 7 checklist against the real
+domain (fresh TLS cert + DNS propagation are new variables even though the
+service itself is already proven), then leave Hostinger paused-but-present
+for a 2-4 week rollback window before decommissioning it.
 
 **New wrinkle for Phase 8 specifically (raised 2026-08-25, not yet decided)**:
 user is now considering buying a new, catchier domain/brand name rather than
