@@ -13,6 +13,14 @@ function toDateOnly(isoString) {
   return isoString.slice(0, 10);
 }
 
+// A Custom Label that already looks like our own RT-#### scheme is a real
+// SKU that failed to match an existing row -- not a legacy pre-app location
+// code. Misfiling it into bin_location (the old assumption) both loses the
+// real identifier and spawns a duplicate row under a fresh generated SKU.
+function looksLikeOwnSku(value) {
+  return Boolean(value) && /^RT-\d+$/i.test(value);
+}
+
 async function syncActiveListings() {
   const accessToken = await getAccessToken(['https://api.ebay.com/oauth/api_scope/sell.inventory.readonly']);
   const listings = await getActiveListings(accessToken);
@@ -51,7 +59,8 @@ async function syncActiveListings() {
       // letting it disappear once we eventually push a real RT-XXXX SKU up.
       // Never overwrite a bin_location you've already filled in by hand.
       const shouldBackfillBinLocation =
-        !matchedViaSku && !existing.bin_location && listing.sku && listing.sku !== existing.sku;
+        !matchedViaSku && !existing.bin_location && listing.sku && listing.sku !== existing.sku
+        && !looksLikeOwnSku(listing.sku);
       if (shouldBackfillBinLocation) binLocationBackfilled += 1;
 
       await db('inventory')
@@ -72,7 +81,14 @@ async function syncActiveListings() {
         });
       updated += 1;
     } else {
-      const sku = await nextSku(db);
+      // If eBay's Custom Label already looks like one of our own RT-####
+      // SKUs, it IS the real identifier (this row just failed to match
+      // above) -- use it directly rather than generating a new number and
+      // burying the real SKU in bin_location. Otherwise it's a genuine
+      // legacy pre-app location code, preserved in bin_location same as
+      // always.
+      const ownSku = looksLikeOwnSku(listing.sku);
+      const sku = ownSku ? listing.sku : await nextSku(db);
       await db('inventory').insert({
         sku,
         item_name: listing.title,
@@ -83,13 +99,9 @@ async function syncActiveListings() {
         date_listed: toDateOnly(listing.startTime),
         date_acquired: null,
         ebay_primary_photo_url: listing.galleryUrl || null,
-        // eBay's existing Custom Label wasn't ours -- it's the seller's old
-        // location code from before this app existed. Keep it as a bin
-        // location rather than discarding it; our own sku above is the new
-        // permanent identifier.
-        bin_location: listing.sku || null,
+        bin_location: ownSku ? null : listing.sku || null,
       });
-      if (listing.sku) binLocationBackfilled += 1;
+      if (!ownSku && listing.sku) binLocationBackfilled += 1;
       created += 1;
     }
   }
