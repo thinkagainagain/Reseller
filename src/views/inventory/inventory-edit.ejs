@@ -21,6 +21,32 @@
       </div>
     <% } %>
 
+    <% if (photos && photos.length > 0) { %>
+      <div class="card">
+        <label>Photos (<%= photos.length %>)</label>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+          <% photos.forEach(function(p) { %>
+            <div style="text-align:center;">
+              <img class="thumb" src="<%= p.file_path %>" alt="<%= item.sku %>">
+              <form method="POST" action="/inventory/<%= item.sku %>/photos/<%= p.id %>/delete" onsubmit="return confirm('Remove this photo?');">
+                <input type="hidden" name="return_to" value="<%= returnTo %>">
+                <button type="submit" class="button-secondary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">Remove</button>
+              </form>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="card">
+      <form method="POST" action="/inventory/<%= item.sku %>/photos" enctype="multipart/form-data">
+        <input type="hidden" name="return_to" value="<%= returnTo %>">
+        <label for="photos">Add more photos</label>
+        <input type="file" id="photos" name="photos" accept="image/*" multiple>
+        <button type="submit" class="button-secondary">Upload</button>
+      </form>
+    </div>
+
     <% if (aiDraft) { %>
       <div class="card" style="color:#b7791f;font-weight:600;">AI research below — not yet saved. Review, add a clarification note and re-run if something's off, or Save when it looks right.</div>
     <% } %>
@@ -97,6 +123,19 @@
           <option value="<%= c %>" <%= item.condition === c ? 'selected' : '' %>><%= c %></option>
         <% }); %>
       </select>
+
+      <% if (conditionPolicy && conditionPolicy.conditions.length > 0) { %>
+        <label for="ebay_condition_id">Condition for eBay (real options for this eBay category)</label>
+        <select id="ebay_condition_id" name="ebay_condition_id">
+          <option value="">—</option>
+          <% conditionPolicy.conditions.forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= String(item.ebay_condition_id) === String(c.id) ? 'selected' : '' %>><%= c.description %></option>
+          <% }); %>
+        </select>
+      <% } else { %>
+        <input type="hidden" name="ebay_condition_id" value="<%= item.ebay_condition_id || '' %>">
+        <p style="color:#718096;font-size:0.9rem;">Pick an eBay category above and save, then come back to see real eBay condition options for it.</p>
+      <% } %>
 
       <label for="purchase_cost">Cost of goods</label>
       <input type="number" id="purchase_cost" name="purchase_cost" step="0.01" min="0" inputmode="decimal" value="<%= item.purchase_cost ?? '' %>">

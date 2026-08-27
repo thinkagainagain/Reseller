@@ -6,6 +6,7 @@ const {
   PutObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
+  DeleteObjectCommand,
   DeleteObjectsCommand,
 } = require('@aws-sdk/client-s3');
 const config = require('../config');
@@ -114,6 +115,17 @@ async function streamObject(key, res) {
   });
 }
 
+async function deleteObject(key) {
+  if (config.storage.driver === 'r2') {
+    await getS3Client().send(
+      new DeleteObjectCommand({ Bucket: config.storage.r2.bucket, Key: key })
+    );
+    return;
+  }
+
+  await fs.unlink(path.join(LOCAL_ROOT, key)).catch(() => {});
+}
+
 async function deleteByPrefix(prefix) {
   if (config.storage.driver === 'r2') {
     const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`;
@@ -134,4 +146,4 @@ async function deleteByPrefix(prefix) {
   await fs.rm(path.join(LOCAL_ROOT, prefix), { recursive: true, force: true }).catch(() => {});
 }
 
-module.exports = { putObject, readObject, streamObject, deleteByPrefix };
+module.exports = { putObject, readObject, streamObject, deleteObject, deleteByPrefix };

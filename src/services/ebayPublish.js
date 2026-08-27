@@ -10,14 +10,14 @@ function toDateOnly(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function validateItem(item, hasPhoto) {
+function validateItem(item, photoCount) {
   const missing = [];
   if (!item.item_name) missing.push('Title');
   if (!item.description) missing.push('Description');
   if (!item.list_price) missing.push('List price');
   if (!item.ebay_category_id) missing.push('eBay category');
-  if (!item.condition) missing.push('Condition');
-  if (!hasPhoto) missing.push('Photo');
+  if (!item.condition && !item.ebay_condition_id) missing.push('Condition');
+  if (photoCount === 0) missing.push('Photo');
   if (item.weight_lbs === null || item.weight_lbs === undefined) missing.push('Weight (lbs)');
   if (item.weight_oz === null || item.weight_oz === undefined) missing.push('Weight (oz)');
   if (!item.package_length) missing.push('Package length');
@@ -32,13 +32,16 @@ async function publishToEbay(sku) {
     throw new Error(`No inventory row found for ${sku}`);
   }
 
-  const photo = await db('intake_photos').where({ sku }).orderBy('id', 'asc').first();
-  const missing = validateItem(item, Boolean(photo));
+  const photos = await db('intake_photos').where({ sku }).orderBy('id', 'asc');
+  const missing = validateItem(item, photos.length);
   if (missing.length > 0) {
     throw new Error(`Missing required fields: ${missing.join(', ')}`);
   }
 
-  const conditionId = getConditionId(item.condition);
+  // A category-specific ebay_condition_id (set from the real per-category
+  // dropdown on the edit page) takes priority; the static generic map is
+  // only a fallback for items where no category-aware condition was picked.
+  const conditionId = item.ebay_condition_id || getConditionId(item.condition);
   if (!conditionId) {
     throw new Error(`No eBay ConditionID mapping for condition "${item.condition}"`);
   }
@@ -68,7 +71,7 @@ async function publishToEbay(sku) {
     sku: item.sku,
     shipFromCountry,
     shipFromPostalCode,
-    pictureUrl: `${appUrl}${photo.file_path}`,
+    pictureUrls: photos.map((p) => `${appUrl}${p.file_path}`),
     paymentPolicyId,
     returnPolicyId,
     fulfillmentPolicyId,

@@ -1,10 +1,30 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const db = require('../db');
 const constants = require('../lib/constants');
 const { generateListingDraft } = require('../services/aiListingDraft');
+const { getAppAccessToken } = require('../services/ebayAuth');
+const { getConditionPolicy } = require('../services/ebayMetadata');
 const storage = require('../lib/storage');
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Category-specific condition options, e.g. Books use New/Like New/Very
+// Good/Good/Acceptable while Clothing uses its own New-with-tags/Pre-owned
+// scale -- see get_item_condition_policies. Non-fatal: if eBay's Metadata
+// API is unreachable or the category has no policy yet, the edit page just
+// falls back to the app's static Condition list.
+async function loadConditionPolicy(categoryId) {
+  if (!categoryId) return null;
+  try {
+    const token = await getAppAccessToken();
+    return await getConditionPolicy(token, categoryId);
+  } catch (err) {
+    return null;
+  }
+}
 
 router.get('/inventory', async (req, res) => {
   const items = await db('inventory')
@@ -48,11 +68,12 @@ router.get('/inventory/:sku/edit', async (req, res) => {
   const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
   const returnTo = returnMap[req.query.from] || 'inventory';
 
-  const photo = await db('intake_photos').where({ sku: item.sku }).orderBy('id', 'asc').first();
-  const hasPhoto = Boolean(photo);
-  const photoUrl = item.ebay_primary_photo_url || (photo ? photo.file_path : null);
+  const photos = await db('intake_photos').where({ sku: item.sku }).orderBy('id', 'asc');
+  const hasPhoto = photos.length > 0;
+  const photoUrl = item.ebay_primary_photo_url || (photos[0] ? photos[0].file_path : null);
+  const conditionPolicy = await loadConditionPolicy(item.ebay_category_id);
 
-  res.render('inventory/inventory-edit', { item, constants, returnTo, hasPhoto, photoUrl, aiDraft: false, error: null });
+  res.render('inventory/inventory-edit', { item, constants, returnTo, hasPhoto, photoUrl, photos, conditionPolicy, aiDraft: false, error: null });
 });
 
 router.post('/inventory/:sku/edit', async (req, res) => {
@@ -62,8 +83,8 @@ router.post('/inventory/:sku/edit', async (req, res) => {
     bin_location, status, death_pile_reason, death_pile_action_plan,
     date_acquired, notes, description, brand, item_size, color,
     year_manufactured, country_of_origin, ebay_category_id, ebay_category_name,
-    weight_lbs, weight_oz, package_length, package_width, package_height,
-    item_type, return_to,
+    ebay_condition_id, weight_lbs, weight_oz, package_length, package_width,
+    package_height, item_type, return_to,
   } = req.body;
 
   await db('inventory')
@@ -73,6 +94,7 @@ router.post('/inventory/:sku/edit', async (req, res) => {
       category: category || null,
       source: source || null,
       condition: condition || null,
+      ebay_condition_id: ebay_condition_id || null,
       purchase_cost: purchase_cost === '' ? null : Number(purchase_cost),
       list_price: list_price === '' ? null : Number(list_price),
       bin_location: bin_location?.trim() || null,
@@ -117,15 +139,16 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
 
   const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
   const returnTo = returnMap[return_to] || 'inventory';
-  const photo = await db('intake_photos').where({ sku }).orderBy('id', 'asc').first();
-  const hasPhoto = Boolean(photo);
-  const photoUrl = item.ebay_primary_photo_url || (photo ? photo.file_path : null);
+  const photos = await db('intake_photos').where({ sku }).orderBy('id', 'asc');
+  const hasPhoto = photos.length > 0;
+  const photoUrl = item.ebay_primary_photo_url || (photos[0] ? photos[0].file_path : null);
 
   try {
     const draft = await generateListingDraft(sku, clarification?.trim() || null);
     const notes = item.notes && draft.notes
       ? `${draft.notes}\n\n---\n\n${item.notes}`
       : draft.notes || item.notes;
+    const draftEbayCategoryId = draft.ebay_category_id ?? item.ebay_category_id;
     res.render('inventory/inventory-edit', {
       item: {
         ...item,
@@ -139,7 +162,7 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
         list_price: draft.list_price ?? item.list_price,
         category: draft.category,
         condition: draft.condition,
-        ebay_category_id: draft.ebay_category_id ?? item.ebay_category_id,
+        ebay_category_id: draftEbayCategoryId,
         ebay_category_name: draft.ebay_category_name ?? item.ebay_category_name,
         notes,
       },
@@ -147,6 +170,8 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
       returnTo,
       hasPhoto,
       photoUrl,
+      photos,
+      conditionPolicy: await loadConditionPolicy(draftEbayCategoryId),
       aiDraft: true,
       error: null,
     });
@@ -157,10 +182,55 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
       returnTo,
       hasPhoto,
       photoUrl,
+      photos,
+      conditionPolicy: await loadConditionPolicy(item.ebay_category_id),
       aiDraft: false,
       error: err.message,
     });
   }
+});
+
+router.post('/inventory/:sku/photos', upload.array('photos', 10), async (req, res) => {
+  const { sku } = req.params;
+  const { return_to } = req.body;
+
+  const item = await db('inventory').where({ sku }).first();
+  if (!item) {
+    return res.status(404).send('SKU not found');
+  }
+
+  if (req.files && req.files.length > 0) {
+    // Filenames are positional (1.jpg, 2.jpg, ...) -- start counting from
+    // how many photos this SKU already has, not from 1, or a second upload
+    // would silently overwrite the first batch's files.
+    const existingCount = Number(
+      (await db('intake_photos').where({ sku }).count('* as c').first()).c
+    );
+    const photoRows = [];
+    for (const [index, file] of req.files.entries()) {
+      const ext = path.extname(file.originalname) || '.jpg';
+      const filename = `${existingCount + index + 1}${ext}`;
+      await storage.putObject(`${sku}/${filename}`, file.buffer);
+      photoRows.push({ sku, file_path: `/uploads/${sku}/${filename}` });
+    }
+    await db('intake_photos').insert(photoRows);
+  }
+
+  res.redirect(`/inventory/${sku}/edit${return_to ? `?from=${return_to}` : ''}`);
+});
+
+router.post('/inventory/:sku/photos/:photoId/delete', async (req, res) => {
+  const { sku, photoId } = req.params;
+  const { return_to } = req.body;
+
+  const photo = await db('intake_photos').where({ id: photoId, sku }).first();
+  if (photo) {
+    await db('intake_photos').where({ id: photoId }).del();
+    const storageKey = photo.file_path.replace(/^\/uploads\//, '');
+    await storage.deleteObject(storageKey);
+  }
+
+  res.redirect(`/inventory/${sku}/edit${return_to ? `?from=${return_to}` : ''}`);
 });
 
 router.post('/inventory/:sku/delete', async (req, res) => {

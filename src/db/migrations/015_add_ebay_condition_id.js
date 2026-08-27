@@ -1,0 +1,11 @@
+exports.up = function (knex) {
+  return knex.schema.alterTable('inventory', (table) => {
+    table.string('ebay_condition_id');
+  });
+};
+
+exports.down = function (knex) {
+  return knex.schema.alterTable('inventory', (table) => {
+    table.dropColumn('ebay_condition_id');
+  });
+};

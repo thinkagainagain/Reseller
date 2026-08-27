@@ -144,6 +144,12 @@ function buildItemSpecificsXml(specifics) {
   return `\n  <ItemSpecifics>\n${nameValueLines}\n  </ItemSpecifics>`;
 }
 
+function buildPictureDetailsXml(pictureUrls) {
+  const urls = (pictureUrls || []).filter(Boolean);
+  const urlLines = urls.map((url) => `      <PictureURL>${escapeXml(url)}</PictureURL>`).join('\n');
+  return `    <PictureDetails>\n${urlLines}\n    </PictureDetails>`;
+}
+
 // Creates a new fixed-price listing scheduled to go live at a future date
 // (rather than immediately), so it's a real, native, editable Seller Hub
 // listing during the hold -- see the "Ready to Publish" plan for why this
@@ -167,9 +173,7 @@ function buildAddFixedPriceItemRequest(listing) {
     <Site>US</Site>
     <ListingType>FixedPriceItem</ListingType>
     <ListingDuration>GTC</ListingDuration>
-    <PictureDetails>
-      <PictureURL>${escapeXml(listing.pictureUrl)}</PictureURL>
-    </PictureDetails>
+${buildPictureDetailsXml(listing.pictureUrls)}
     <ShippingPackageDetails>
       <WeightMajor unit="lbs">${listing.weightLbs}</WeightMajor>
       <WeightMinor unit="oz">${listing.weightOz}</WeightMinor>
@@ -221,4 +225,4 @@ async function addFixedPriceItem(accessToken, listing) {
   return { ack: response.Ack, itemId: String(response.ItemID), startTime: response.StartTime };
 }
 
-module.exports = { getActiveListings, reviseSku, addFixedPriceItem };
+module.exports = { getActiveListings, reviseSku, addFixedPriceItem, buildPictureDetailsXml };
