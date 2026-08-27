@@ -1,8 +1,51 @@
 # Session handoff
 
-Last updated: 2026-08-26. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-08-27. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
+
+## eBay Publish/Sync sessions (2026-08-26 -- 2026-08-27) — code committed, deploy on hold
+
+Three commits now sit on `staging`, still **not pushed or deployed** -- same
+hold as before, user wants a full production update + resync done together
+rather than pieces landing ahead of that. The first two are described below;
+the third is this continuation session's work:
+
+3. `3a56ca2` -- **Robust listings step 1: send all photos, real per-category
+   conditions.** Follow-through on the "open decision" noted below -- user
+   confirmed: no eBay support case (poor track record), build the
+   robustness into our own app instead. Two pieces, both verified live:
+   - *All* of a SKU's photos now get sent to eBay at publish (every reader
+     used to hard-code `.first()`). New routes to add more photos to an
+     existing SKU or remove one, with a thumbnail gallery on the edit page.
+     Fixed a real collision bug hit while building this: the upload path
+     numbered files `1.ext, 2.ext...` from scratch every request, so a
+     second upload for the same SKU silently overwrote the first.
+   - Condition options are now pulled live per-category from eBay's
+     Metadata API (`get_item_condition_policies`) instead of one static
+     6-value guess. Confirmed live against real categories this seller
+     uses: Books/DVDs get a 5-point New→Acceptable scale, Clothing/Hats get
+     their own New-with-tags→Pre-owned-Fair scale, most everything else
+     (Mugs, Vinyl, board games) is just New/Used, and Collectible Figures
+     don't require a condition at all. New `ebay_condition_id` column holds
+     the real eBay conditionId; publish prefers it over the old static map
+     when set.
+   - **Deliberately deferred, not built**: category-specific required Item
+     Specifics beyond condition (Books need Author/Book Title/Language,
+     DVDs need Movie/TV Title/Format, Vinyl needs Artist, Clothing needs
+     Style/Department/Dress Length -- confirmed live via
+     `get_item_aspects_for_category`, none of these have fields today).
+     Needs flexible per-SKU field storage (a key/value table), not more
+     fixed columns -- scoped as its own follow-up session, not started.
+   - **Verification gotcha worth remembering**: eBay calls made through a
+     server launched via the Browser-pane `preview_start` tool failed with
+     a TLS `UNABLE_TO_VERIFY_LEAF_SIGNATURE` error -- that sandbox appears
+     to intercept/proxy outbound HTTPS in a way Node's default trust store
+     rejects. The exact same code works fine both as a plain Bash-run
+     script and as a Bash-launched `node src/server.js` (verified via curl
+     against the locally-running app). Not a real bug; just don't trust an
+     eBay-calling failure surfaced only through the Browser-pane preview
+     without cross-checking via a Bash-launched server first.
 
 ## eBay Publish/Sync session (2026-08-26) — code committed, deploy on hold
 
@@ -55,13 +98,18 @@ what motivated the primary-photo-sync feature above, and was confirmed safe:
 `syncActiveListings()` never reads/writes photos, so it doesn't fight with
 manual eBay-side photo edits).
 
-**Open decision, not yet made:** since eBay's scheduling can't be trusted,
-`src/services/ebayPublish.js`'s `SCHEDULE_DAYS_OUT = 20` hold-and-edit model
-doesn't actually work as designed. Recommended direction (not yet built):
-stop depending on eBay-side scheduling entirely -- treat "Publish" as truly
-"goes live now," and move the real-photo editing window to *before* that
-button (require final photos in-app before an item can enter Ready to
-Publish), rather than after. Revisit next eBay-focused session.
+**Decision made and partly built** (was "open, not yet made" as of
+2026-08-26; resolved 2026-08-27, see `3a56ca2` above): since eBay's
+scheduling can't be trusted, stop depending on it -- "Publish" is now
+understood to mean "goes live for real," and the robustness work moves to
+*before* that button instead of during a (non-existent) hold window.
+Multi-photo + real per-category condition are built; the bigger remaining
+piece is category-specific Item Specifics (see above) -- once that's done,
+consider whether `src/services/ebayPublish.js`'s still-present
+`SCHEDULE_DAYS_OUT = 20` / `SchedulingInfo` request is worth ripping out
+entirely (it's harmless dead weight since eBay ignores it regardless, but
+misleading to read) -- left as-is this session since it wasn't in scope of
+the approved plan.
 
 **Unrelated, still-open background task from a prior session** (`task_7048238f`,
 not touched this session): eBay's required Item Specifics vary by category.
