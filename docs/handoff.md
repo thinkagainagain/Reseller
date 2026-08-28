@@ -4,12 +4,79 @@ Last updated: 2026-08-27. This is a living "pick up here" doc — overwrite it (
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
-## eBay Publish/Sync sessions (2026-08-26 -- 2026-08-27) — code committed, deploy on hold
+## Deploy status as of 2026-08-27 (read this first)
 
-Three commits now sit on `staging`, still **not pushed or deployed** -- same
-hold as before, user wants a full production update + resync done together
-rather than pieces landing ahead of that. The first two are described below;
-the third is this continuation session's work:
+**Deployed and confirmed live in production**: commits `2c68dea` through
+`d182478` (photo-primary-sync, the `bin_location` sync fix, and robust-
+listings step 1 -- multi-photo + real per-category condition) were merged
+`staging` -> `main` and deployed to `rebooty-ops-production.onrender.com`
+this session. A real production sync was run afterward and confirmed
+working (see the "Sync run against production" note below for the one
+real gotcha hit along the way -- wrong URL, not a code problem).
+
+**Committed but NOT yet pushed/deployed**: `3d0b236` (Orders pipeline --
+see its own section below). Same reasoning as before: don't let a fresh
+piece land on production without the user in the loop first. Check with
+the user before pushing `staging` -> `main` again.
+
+**Sync run against production, 2026-08-27**: first attempt failed with the
+exact old Hostinger 500 signature -- turned out the user was still on the
+**Hostinger** deployment out of habit, not
+`https://rebooty-ops-production.onrender.com` (no custom domain is live
+yet -- that's Phase 8, still blocked on the domain decision). Once
+pointed at the right URL it worked. Separately, actually surfaced a real
+architecture problem: `syncActiveListings`/`syncSoldOrders` do one DB
+round-trip per item sequentially (~1300+ items), which outran Render's
+request timeout and produced a client-side "Bad Gateway" even though the
+sync kept running successfully server-side in the background (confirmed --
+thumbnails kept populating on repeated page reloads after the timeout).
+**Not yet fixed** -- worth batching the DB writes or moving sync to a
+background job before this gets worse as inventory grows. User also
+wants automatic periodic sync eventually (no cron currently exists despite
+that being an early plan) but explicitly said hold that build for later --
+when built, no push notification, just keep the dashboard current.
+
+## Orders pipeline (2026-08-27) — new this session, not deployed
+
+`3d0b236` replaces the old single-step "eBay reports a sale -> instantly
+Sold" flow with a real two-stage workflow: **Current** (open orders, sorted
+SKU -> Bin/Loc -> Title for pulling items off the shelf) and **Completed**
+(shipped, with real tracking + real per-order eBay fees). `/inventory/sold`
+is retired in favor of `/orders/completed`.
+
+Verified live against real production eBay order data during
+development: `syncSoldOrders` now captures eBay's real `totalMarketplaceFee`
+immediately at sale time (independent of shipping method) and separately
+auto-detects when an order flips to `FULFILLED`, pulling the real tracking
+number/carrier/ship date from the order's `shipping_fulfillment` resource --
+11 real already-shipped orders and 3 real not-yet-shipped ones both
+classified correctly in one test run. `computeProfit`
+(`src/lib/profit.js`) now prefers this real fee over the old
+`fee_percent`/`flat_fee` estimate when present.
+
+**Known, accepted gap**: eBay's API exposes no "delivered" status at all
+(confirmed live, not just docs) -- shipped is the finish line, delivery
+tracking was explicitly descoped by the user.
+
+**Manual fallback matters here**: the user ships via eBay Seller Hub's own
+label purchase *most of the time*, but occasionally uses Pirate Ship
+instead -- eBay has zero record of Pirate Ship shipments, so those orders
+will never auto-detect as shipped. The `POST /orders/:id/ship` manual form
+on the Current page (tracking number + carrier, sets `shipped_date` to
+today) is the only way those move to Completed -- verified working this
+session. Non-eBay manual sales (`/sales/new`, Poshmark/Mercari/etc.) skip
+the Current stage entirely and land straight in Completed, since that form
+already collects everything up front.
+
+**Verification note carried over**: eBay calls made through a server
+launched via the Browser-pane `preview_start` tool still fail with a TLS
+`UNABLE_TO_VERIFY_LEAF_SIGNATURE` error (that sandbox intercepts/proxies
+outbound HTTPS in a way Node's default trust store rejects) -- the working
+pattern is `node src/server.js &` via Bash, then point the Browser pane at
+that URL with `preview_start({url: ...})`. Used successfully again this
+session for both the sync-logic test and the new Orders pages.
+
+## eBay Publish/Sync sessions (2026-08-26 -- 2026-08-27) — history
 
 3. `3a56ca2` -- **Robust listings step 1: send all photos, real per-category
    conditions.** Follow-through on the "open decision" noted below -- user
