@@ -18,6 +18,7 @@ const skuExportRoutes = require('./routes/skuExport');
 const readyToPublishRoutes = require('./routes/readyToPublish');
 const ordersRoutes = require('./routes/orders');
 const storage = require('./lib/storage');
+const { startScheduledSync } = require('./services/scheduledSync');
 
 const app = express();
 
@@ -99,6 +100,7 @@ db.migrate
   .then(() => {
     app.listen(PORT, () => {
       console.log(`ReBooty Ops running at http://localhost:${PORT}`);
+      startScheduledSync();
     });
   })
   .catch((err) => {
