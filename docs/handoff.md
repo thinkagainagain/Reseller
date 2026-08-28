@@ -4,406 +4,133 @@ Last updated: 2026-08-27. This is a living "pick up here" doc — overwrite it (
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
-## Deploy status as of 2026-08-27 (read this first)
-
-**Deployed and confirmed live in production**: commits `2c68dea` through
-`d182478` (photo-primary-sync, the `bin_location` sync fix, and robust-
-listings step 1 -- multi-photo + real per-category condition) were merged
-`staging` -> `main` and deployed to `rebooty-ops-production.onrender.com`
-this session. A real production sync was run afterward and confirmed
-working (see the "Sync run against production" note below for the one
-real gotcha hit along the way -- wrong URL, not a code problem).
-
-**Committed but NOT yet pushed/deployed**: `3d0b236` (Orders pipeline --
-see its own section below). Same reasoning as before: don't let a fresh
-piece land on production without the user in the loop first. Check with
-the user before pushing `staging` -> `main` again.
-
-**Sync run against production, 2026-08-27**: first attempt failed with the
-exact old Hostinger 500 signature -- turned out the user was still on the
-**Hostinger** deployment out of habit, not
-`https://rebooty-ops-production.onrender.com` (no custom domain is live
-yet -- that's Phase 8, still blocked on the domain decision). Once
-pointed at the right URL it worked. Separately, actually surfaced a real
-architecture problem: `syncActiveListings`/`syncSoldOrders` do one DB
-round-trip per item sequentially (~1300+ items), which outran Render's
-request timeout and produced a client-side "Bad Gateway" even though the
-sync kept running successfully server-side in the background (confirmed --
-thumbnails kept populating on repeated page reloads after the timeout).
-**Not yet fixed** -- worth batching the DB writes or moving sync to a
-background job before this gets worse as inventory grows. User also
-wants automatic periodic sync eventually (no cron currently exists despite
-that being an early plan) but explicitly said hold that build for later --
-when built, no push notification, just keep the dashboard current.
-
-## Orders pipeline (2026-08-27) — new this session, not deployed
-
-`3d0b236` replaces the old single-step "eBay reports a sale -> instantly
-Sold" flow with a real two-stage workflow: **Current** (open orders, sorted
-SKU -> Bin/Loc -> Title for pulling items off the shelf) and **Completed**
-(shipped, with real tracking + real per-order eBay fees). `/inventory/sold`
-is retired in favor of `/orders/completed`.
-
-Verified live against real production eBay order data during
-development: `syncSoldOrders` now captures eBay's real `totalMarketplaceFee`
-immediately at sale time (independent of shipping method) and separately
-auto-detects when an order flips to `FULFILLED`, pulling the real tracking
-number/carrier/ship date from the order's `shipping_fulfillment` resource --
-11 real already-shipped orders and 3 real not-yet-shipped ones both
-classified correctly in one test run. `computeProfit`
-(`src/lib/profit.js`) now prefers this real fee over the old
-`fee_percent`/`flat_fee` estimate when present.
-
-**Known, accepted gap**: eBay's API exposes no "delivered" status at all
-(confirmed live, not just docs) -- shipped is the finish line, delivery
-tracking was explicitly descoped by the user.
-
-**Manual fallback matters here**: the user ships via eBay Seller Hub's own
-label purchase *most of the time*, but occasionally uses Pirate Ship
-instead -- eBay has zero record of Pirate Ship shipments, so those orders
-will never auto-detect as shipped. The `POST /orders/:id/ship` manual form
-on the Current page (tracking number + carrier, sets `shipped_date` to
-today) is the only way those move to Completed -- verified working this
-session. Non-eBay manual sales (`/sales/new`, Poshmark/Mercari/etc.) skip
-the Current stage entirely and land straight in Completed, since that form
-already collects everything up front.
-
-**Verification note carried over**: eBay calls made through a server
-launched via the Browser-pane `preview_start` tool still fail with a TLS
-`UNABLE_TO_VERIFY_LEAF_SIGNATURE` error (that sandbox intercepts/proxies
-outbound HTTPS in a way Node's default trust store rejects) -- the working
-pattern is `node src/server.js &` via Bash, then point the Browser pane at
-that URL with `preview_start({url: ...})`. Used successfully again this
-session for both the sync-logic test and the new Orders pages.
-
-## eBay Publish/Sync sessions (2026-08-26 -- 2026-08-27) — history
-
-3. `3a56ca2` -- **Robust listings step 1: send all photos, real per-category
-   conditions.** Follow-through on the "open decision" noted below -- user
-   confirmed: no eBay support case (poor track record), build the
-   robustness into our own app instead. Two pieces, both verified live:
-   - *All* of a SKU's photos now get sent to eBay at publish (every reader
-     used to hard-code `.first()`). New routes to add more photos to an
-     existing SKU or remove one, with a thumbnail gallery on the edit page.
-     Fixed a real collision bug hit while building this: the upload path
-     numbered files `1.ext, 2.ext...` from scratch every request, so a
-     second upload for the same SKU silently overwrote the first.
-   - Condition options are now pulled live per-category from eBay's
-     Metadata API (`get_item_condition_policies`) instead of one static
-     6-value guess. Confirmed live against real categories this seller
-     uses: Books/DVDs get a 5-point New→Acceptable scale, Clothing/Hats get
-     their own New-with-tags→Pre-owned-Fair scale, most everything else
-     (Mugs, Vinyl, board games) is just New/Used, and Collectible Figures
-     don't require a condition at all. New `ebay_condition_id` column holds
-     the real eBay conditionId; publish prefers it over the old static map
-     when set.
-   - **Deliberately deferred, not built**: category-specific required Item
-     Specifics beyond condition (Books need Author/Book Title/Language,
-     DVDs need Movie/TV Title/Format, Vinyl needs Artist, Clothing needs
-     Style/Department/Dress Length -- confirmed live via
-     `get_item_aspects_for_category`, none of these have fields today).
-     Needs flexible per-SKU field storage (a key/value table), not more
-     fixed columns -- scoped as its own follow-up session, not started.
-   - **Verification gotcha worth remembering**: eBay calls made through a
-     server launched via the Browser-pane `preview_start` tool failed with
-     a TLS `UNABLE_TO_VERIFY_LEAF_SIGNATURE` error -- that sandbox appears
-     to intercept/proxy outbound HTTPS in a way Node's default trust store
-     rejects. The exact same code works fine both as a plain Bash-run
-     script and as a Bash-launched `node src/server.js` (verified via curl
-     against the locally-running app). Not a real bug; just don't trust an
-     eBay-calling failure surfaced only through the Browser-pane preview
-     without cross-checking via a Bash-launched server first.
-
-## eBay Publish/Sync session (2026-08-26) — code committed, deploy on hold
-
-Two commits landed on `staging` this session, **committed but deliberately not
-pushed or deployed** -- user wants to hold until doing a full production
-update + resync together, not have this land ahead of that.
-
-1. `2c68dea` -- **Sync eBay's primary listing photo back into inventory.**
-   New `inventory.ebay_primary_photo_url` column, populated during resync
-   from each active listing's `PictureDetails.GalleryURL` (eBay returns this
-   for free on every `GetMyeBaySelling` ActiveList item, no extra API calls
-   needed -- upsized from eBay's default `s-l140` thumbnail to `s-l500`).
-   Inventory list/edit pages now show it, falling back to the original
-   intake photo until an item's been synced. Motivation: sellers edit in
-   real studio photos directly on eBay after publish (see below), and the
-   app's own view was going stale against what buyers actually see.
-
-2. `08bd03b` -- **Fix sync misfiling real RT-#### SKUs into `bin_location`.**
-   Pre-existing bug (not introduced this session): `syncActiveListings()`'s
-   fallback for a listing that doesn't match any local row assumed eBay's
-   Custom Label was always a legacy pre-app location code, so it generated a
-   fresh SKU number and dumped the *real* Custom Label into `bin_location`
-   instead. Once RT-#### is genuinely our own scheme, that assumption
-   spawns a duplicate row with the real SKU buried in Bin/Loc. Reproduced
-   live (not hypothetical) via local testing -- see next section. Fix: a
-   Custom Label matching `/^RT-\d+$/i` is now used directly as the row's
-   real SKU rather than treated as a location code. **Confirmed clean on
-   production** as of this session (user checked -- no resync has run there
-   against the old buggy code recently enough to have hit it), so this is
-   preventative for prod, not a cleanup-needed situation there. The local
-   dev sqlite copy *did* have 17 rows corrupted this way (all from this
-   session's own test resyncs against stale local data, including one
-   genuine duplicate row for the same eBay item) -- deleted and
-   re-synced clean with the fixed code, confirmed via direct DB query.
-
-**Also discovered, unresolved, no code fix attempted:** eBay is silently
-ignoring `SchedulingInfo`/`StartTime` on `AddFixedPriceItem` for this
-account **despite an active Basic Store subscription** (which should be
-sufficient per eBay's docs -- store-tier was the leading theory and it's
-ruled out). Confirmed two ways: (1) the AddFixedPriceItemResponse's own
-`StartTime` came back as today's date instead of the +20-days-out date
-requested, and (2) a direct follow-up `GetMyeBaySelling` call moments later
-showed the item genuinely in the **Active** (live, purchasable) list, not
-Scheduled. Reproduced live twice: RT-1442 went live immediately with a
-placeholder photo and had to be manually deleted (eBay gives no way to edit
-the scheduled date or pause a listing -- only live or "End Listing"); RT-1444
-hit the same thing and the user chose to just edit it live on eBay instead
-(swapped in real studio photos directly through eBay's own editor -- this is
-what motivated the primary-photo-sync feature above, and was confirmed safe:
-`syncActiveListings()` never reads/writes photos, so it doesn't fight with
-manual eBay-side photo edits).
-
-**Decision made and partly built** (was "open, not yet made" as of
-2026-08-26; resolved 2026-08-27, see `3a56ca2` above): since eBay's
-scheduling can't be trusted, stop depending on it -- "Publish" is now
-understood to mean "goes live for real," and the robustness work moves to
-*before* that button instead of during a (non-existent) hold window.
-Multi-photo + real per-category condition are built; the bigger remaining
-piece is category-specific Item Specifics (see above) -- once that's done,
-consider whether `src/services/ebayPublish.js`'s still-present
-`SCHEDULE_DAYS_OUT = 20` / `SchedulingInfo` request is worth ripping out
-entirely (it's harmless dead weight since eBay ignores it regardless, but
-misleading to read) -- left as-is this session since it wasn't in scope of
-the approved plan.
-
-**Unrelated, still-open background task from a prior session** (`task_7048238f`,
-not touched this session): eBay's required Item Specifics vary by category.
-Hit again today -- RT-1444's category (mugs) required a "Type" specific that
-was blank, rejected with a clean pre-listing validation error, fixed by
-filling in "Mug" manually. Same reactive pattern as before: try the push,
-read eBay's exact error, fix, retry -- not worth pre-solving generically.
-
 ## Where things stand right now
 
-**Actively migrating off Hostinger to Render (Docker), with a staging/production
-split.** Full phased plan: `C:\Users\lucas\.claude\plans\misty-riding-dawn.md`
-(also referenced from Claude's memory as `rebooty-hosting-migration-plan`).
-Reason: eBay's OAuth token endpoint has been returning HTTP 500 for weeks, but
-only for requests from Hostinger's shared-hosting IP (see below) — combined
-with the user re-raising the "productize this as a SaaS someday" idea as more
-concrete, that justified a real infrastructure move rather than another patch.
+**Production is live on Render** at `https://rebooty-ops-production.onrender.com`
+(no custom domain yet — see Phase 8 below). Everything through today's session
+is deployed and confirmed working: `main` and `staging` are in sync at commit
+`fb7f4a3`, pushed and deployed this session.
 
-**Migration progress — Phases 0-3 done, verified, and pushed to `main`** (each
-auto-deployed to Hostinger as a safe no-op there, since none of it activates
-without env vars Hostinger doesn't have set):
-- Phase 0 (`085475d`): persistent session store (`connect-pg-simple`) — fixed
-  a real bug where logins didn't survive a restart.
-- Phase 1 (`1516113`): fixed `EBAY_ENV=sandbox` never actually taking effect —
-  every eBay API host was hardcoded to production. `config.ebay.apiBase` is
-  the fix.
-- Phase 2 (`382b972`): `Dockerfile` + `docker-compose.yml`, verified locally
-  (build, all 13 migrations, seed, login, upload, restart the app container,
-  session survives). Also fixed two Docker-specific bugs it surfaced: DB SSL
-  was hardcoded on (added `DB_SSL` toggle) and a fresh named volume was
-  root-owned while the app runs as non-root.
-- Phase 3 (`2ae433a`): moved uploaded photos to Cloudflare R2 via a new
-  `src/lib/storage.js` (replaces the deleted `src/lib/uploadsDir.js`).
-  Verified against a real R2 bucket (`rebooty-uploads-staging`, account
-  `5b0d99d2e11a844b9e2ac82d5db6ef77`) — write, byte-identical read-back,
-  404 on missing, and delete-through-the-app all confirmed. Also wrote (not
-  yet run) `src/scripts/migrateUploadsToR2.js` for the ~1300 real prod
-  photos, which only runs in Phase 6 once a prod bucket exists.
-- Docker Desktop is installed and working on the user's machine (via WSL2).
+**What shipped today, in order** (all verified live against real production
+eBay/inventory data, not just locally):
+- **Primary-photo sync**: resync pulls each active listing's real current
+  photo from eBay back into the app (`inventory.ebay_primary_photo_url`),
+  so the app stays visually in sync when the user swaps in studio photos
+  directly on eBay after publish.
+- **Sync bug fix**: a listing whose eBay Custom Label already looks like our
+  own `RT-####` scheme was being treated as a legacy location code and
+  buried in `bin_location` under a spawned duplicate SKU. Fixed to recognize
+  and reuse the real SKU directly.
+- **Robust listings step 1**: publish now sends *every* photo on a SKU (not
+  just the first), with routes to add/remove photos on an existing item.
+  eBay's real per-category Condition options (`get_item_condition_policies`)
+  now drive a live dropdown instead of one static 6-value guess — confirmed
+  these genuinely differ a lot (Books/DVDs: 5-point New→Acceptable; Clothing:
+  its own New-with-tags→Pre-owned-Fair scale; most else: plain New/Used).
+- **Orders pipeline**: replaces the old instant "sale → Sold" flow with
+  **Current** (open orders, sorted SKU→Bin/Loc→Title for pulling items) and
+  **Completed** (shipped, with real tracking + real eBay fees). Sync
+  auto-detects eBay-label shipments; a manual "mark shipped" form on Current
+  covers Pirate Ship (the user's occasional alternate shipping method, which
+  eBay never sees). `computeProfit` now prefers the real per-order eBay fee
+  over the old estimated percentage when available.
+- **Sticky table headers + reachable horizontal scroll**: `.table-scroll` is
+  now a bounded-height scroll box (not just `overflow-x`), so column headers
+  stay pinned while scrolling 1,300+ rows and the horizontal scrollbar sits
+  near the visible screen instead of at the bottom of a huge table.
 
-**Phases 4 and 5 are now DONE** (staging fully provisioned, deployed, and
-verified end-to-end). Picked up and completed in one session, 2026-08-24
-through 2026-08-25:
-- [x] `render.yaml` Blueprint written and committed to `main` (`4140f0e`),
-      later trimmed to just the staging service (`e006d1e`) so Phase 4 setup
-      didn't force filling in placeholder production secrets — see the
-      comment at the top of `render.yaml` for how to add production back.
-- [x] `staging` branch created and pushed to origin, tracking
-      `origin/staging`.
-- [x] New Supabase project `rebooty-ops-staging` created (separate from prod).
-      Use the **Session pooler** connection string, not "Direct connection" —
-      the direct hostname is IPv6-only and doesn't resolve on this network/
-      Node setup (`ENOTFOUND`). Pooler string format:
-      `postgresql://postgres.<ref>:<password>@aws-0-us-east-1.pooler.supabase.com:5432/postgres`.
-      All 13 migrations + both seeds (`platform_fees`, `admin_user`) run and
-      verified clean against it locally. Staging admin login seeded as
-      `staging-admin` (password generated this session, stored only in the
-      user's own notes / will go straight into Render's secret fields, not
-      committed anywhere).
-- [x] eBay Sandbox keyset captured: `Client ID`, `Client Secret`, `Dev ID`
-      (same eBay dev account as prod, sandbox keyset shown alongside it —
-      no new registration needed).
-- [x] Sandbox `EBAY_REFRESH_TOKEN` obtained via three-legged OAuth consent
-      (RuName `Rebooty_Treasur-RebootyT-Resell-gianap`, scopes
-      `sell.inventory.readonly`, `sell.fulfillment.readonly`,
-      `sell.account`), verified working via a live `refresh_token` grant.
-      **Gotcha hit along the way**: the portal's built-in "Get a User Token
-      Here" quick-test box and the "Auth'n'Auth" branded sign-in link both
-      produce values that look superficially like what you need but aren't
-      an OAuth authorization code — only the second "Your branded eBay
-      Sandbox Sign In (**OAuth**)" link under "Get a Token from eBay via Your
-      Application" redirects with a real `?code=...` param usable for the
-      standard token exchange. Also: the auth code expires in ~5 minutes and
-      is single-use, so paste it back immediately.
-- [x] Sandbox business policies created via the Account API (the Sandbox
-      Business Policies UI doesn't work for test users — a known Sandbox
-      limitation). Required an explicit opt-in first:
-      `POST /sell/account/v1/program/opt_in {"programType":
-      "SELLING_POLICY_MANAGEMENT"}`, then `createPaymentPolicy`/
-      `createReturnPolicy`/`createFulfillmentPolicy`. Policy IDs obtained:
-      payment `6246729000`, return `6246730000`, fulfillment `6246728000`.
-      Ship-from ZIP for staging: `32034` (same as prod — not sensitive).
-      All eBay secrets given directly to the user, not stored in this repo.
-- [x] Render account created, `rebooty-ops` Blueprint deployed from
-      `render.yaml` (staging service only). Live at
-      `https://rebooty-ops-staging.onrender.com`.
-- [x] **Phase 5 (staging verification) — all checks passed**:
-      - `/healthz` → `ok`.
-      - Logged in as `staging-admin`, session persisted.
-      - Uploaded a real photo through the deployed app, confirmed
-        byte-identical read-back through the R2 proxy.
-      - Ran a full sandbox `AddFixedPriceItem` publish (item `110590242491`,
-        confirmed `Active` via `GetItem`) — first proof the whole OAuth +
-        business-policy + Trading API pipeline works against Render. Left in
-        place (SKU `RT-0001`, status `Scheduled`) as the working proof, same
-        pattern as the first real production listing.
-      - Triggered a manual redeploy on Render, confirmed the session
-        survived it without re-login — proves Phase 0's persistent session
-        store specifically under Render (not just Docker locally).
-      **Real finding surfaced along the way** (not a migration bug, already
-      flagged in `src/lib/ebayConditionMap.js`'s comment): eBay's allowed
-      `ConditionID` values and required item specifics (Size/Type/Color) are
-      category-dependent -- a clothing category rejected `condition: 'Good'`
-      and required a Size specific that a Mugs-category test item didn't.
-      Worth remembering when testing/using clothing categories specifically.
-**Phases 6 and 7 are now DONE** (production provisioned, deployed, and fully
-verified against its temporary Render URL). Completed 2026-08-26:
-- [x] R2 bucket `rebooty-uploads-prod` created and verified (write/read/
-      delete round-trip).
-- [x] Pulled the real uploads folder off Hostinger via SSH/SFTP (had to
-      enable SSH Access in hPanel first -- it showed disabled by default,
-      account's shell came back broken/`nologin` until toggled on). Turned
-      out to be far fewer files than the "~1300 photos" estimate in this
-      doc's earlier version -- only 68 files (matching 79 `intake_photos` DB
-      rows minus a handful missing/orphaned), since `REBOOTY_UPLOADS_DIR`
-      was only wired up somewhat recently; older items' photos were never
-      in a persistent location to begin with. All 68 migrated to
-      `rebooty-uploads-prod` and byte-verified.
-- [x] `render.yaml`'s production service added back in and deployed
-      (`4b19eec`). Real secrets entered directly in Render's dashboard
-      (found reusable prod eBay/Anthropic/SerpApi credentials already
-      sitting in a local `.env` from earlier Hostinger-workaround sessions
-      -- no re-provisioning needed there). Admin login: kept the existing
-      real Hostinger credentials as-is (these live in the `users` DB table,
-      not in env vars -- `ADMIN_USERNAME`/`ADMIN_PASSWORD` only matter for
-      one-time seed bootstrap, never for login itself).
-- [x] **Phase 7 verification -- all checks passed**, live at
-      `https://rebooty-ops-production.onrender.com`:
-      - `/healthz` → `ok`; all 13 migrations already clean against the real
-        prod Supabase DB (1436 inventory rows, confirmed real data).
-      - R2-backed photo proxy serves migrated photos correctly.
-      - **The actual point of this migration**: `/sync/diagnose` returns
-        `200` from both the `fetch` and `curl` clients, from Render's IP
-        `74.220.48.188` -- eBay's token endpoint no longer 500s.
-      - One real "Ready to Publish" push succeeded against **production**
-        eBay (not sandbox): SKU `RT-1442`, a real live listing.
-- **Static Outbound IP was investigated and deliberately skipped**: Render
-  prices it at ~$100/mo (requires the account's *workspace* plan to be
-  Team-tier, not just a bigger per-service instance size -- these are two
-  separate Render billing concepts, easy to conflate). Since the diagnostic
-  above already passed cleanly on Render's regular (non-static) IP, and the
-  original Hostinger problem was "shared-hosting IP with bad reputation"
-  rather than "needs a literal permanent IP," there's no evidence this is
-  needed. Revisit only if `/sync/diagnose` ever starts failing again with a
-  new IP after a future redeploy.
+## Open items to pick up next
 
-**Three real bugs found and fixed during Phase 7 verification** (all
-deployed, none are migration-specific, all uncovered by actually exercising
-production for the first time):
-1. `/sync/diagnose`'s curl check ran with `-s` but not `-S`, silently
-   swallowing curl's own error text on failure whenever curl failed
-   (`dea7218`).
-2. The Docker runtime image installed `curl` with `--no-install-recommends`,
-   which skips `ca-certificates` (only a Recommends of curl on Debian, not a
-   hard dependency) -- left curl with no CA bundle at all, causing curl
-   error 77 ("error setting certificate file"). Node's `fetch` never hit
-   this since it bundles its own root certs independent of the OS (`2afc0d3`).
-3. `ANTHROPIC_API_KEY` as pasted into Render's dashboard had picked up a
-   stray non-Latin1 character (character code 8226, a bullet -- likely a
-   copy/paste artifact from how the value was originally shared), which made
-   every "Generate with AI" call throw `Cannot convert argument to a
-   ByteString` from `fetch()`'s header validation. Not a code bug -- fixed
-   by re-pasting the credential value cleanly in Render's UI.
+1. **Sync performance is a real, hit-in-production problem, not yet fixed.**
+   `syncActiveListings`/`syncSoldOrders` do one DB round-trip per item,
+   sequentially, for 1,300+ items — this outran Render's request timeout
+   during this session's production sync (client saw "Bad Gateway" while the
+   sync kept running successfully server-side in the background, confirmed
+   by watching thumbnails populate across repeated page reloads). Needs
+   batched DB writes or a background-job model before this gets worse as
+   inventory grows.
+2. **Automatic periodic sync** — user wants this eventually (no cron exists
+   despite it being an early plan), explicitly said **hold the build** for
+   now. When built: no push notification, just keep the dashboard current
+   automatically so logging in shows fresh data. Should land after #1 above
+   is fixed, not before.
+3. **Category-specific Item Specifics beyond Condition** — confirmed live via
+   `get_item_aspects_for_category` that Books need Author/Book Title/
+   Language, DVDs need Movie/TV Title/Format, Vinyl needs Artist, Clothing
+   needs Style/Department/Dress Length, none of which have fields today.
+   Deliberately deferred — needs flexible per-SKU field storage (a key/value
+   table), not more fixed columns. Scoped as its own session.
+4. **Phase 8 DNS cutover** — the only remaining piece of the Hostinger→Render
+   migration (full history below). Blocked on one decision: user is
+   considering a new, catchier domain/brand instead of
+   `ops.rebootytreasures.com`, motivated by the app feeling like a real
+   product now, not just an internal tool. Confirm which domain before
+   executing — don't assume the old one by default.
+5. **Dead code worth a look eventually**: `src/services/ebayPublish.js`'s
+   `SCHEDULE_DAYS_OUT = 20` / `SchedulingInfo` request is harmless but
+   misleading — eBay silently ignores it regardless of what's sent (confirmed
+   live twice, see below), so "Publish" already means "goes live now," this
+   code just doesn't admit it. Low priority, not touched this session.
 
-**One real bug found, not yet fixed** (flagged as a background task,
-`task_7048238f`, "Make eBay condition ID category-aware"): eBay's allowed
-`ConditionID` values are category-dependent, and `src/lib/ebayConditionMap.js`
-uses one static map for every category. Confirmed via a real publish failure:
-Collectibles > Mugs (category 261672) only accepts New/New other/Used --
-rejects the app's generic Good/Fair/Poor scale outright. Worked around for
-the one test listing by choosing a condition that happened to map to a valid
-ID; the real fix is querying eBay's Metadata API
-(`get_item_condition_policies`) per-category at publish time instead of
-guessing. Not urgent, but will keep recurring for restrictive categories
-until fixed.
+## Key non-obvious findings worth remembering
 
-**Only remaining step: Phase 8 (DNS cutover)** -- see the "new wrinkle"
-section right below for the one open decision blocking it (domain name).
-Otherwise, follow the plan file's Phase 8 steps as written: update
-`APP_PUBLIC_URL` to the final domain, add the custom domain in Render,
-update DNS, immediately re-run the Phase 7 checklist against the real
-domain (fresh TLS cert + DNS propagation are new variables even though the
-service itself is already proven), then leave Hostinger paused-but-present
-for a 2-4 week rollback window before decommissioning it.
+- **eBay ignores `SchedulingInfo`/`StartTime` for this account, even with an
+  active Basic Store subscription** (which should be sufficient per eBay's
+  own rules — that was the leading theory and it's ruled out). Confirmed
+  twice live: an `AddFixedPriceItemResponse`'s own `StartTime` came back as
+  *today*, not the requested date, and the item was immediately live in
+  eBay's Active list. No support case filed (user: eBay support has a poor
+  track record) — the fix was moving listing "robustness" work into the app
+  itself, before Publish, instead of relying on an eBay-side hold.
+- **The user still sometimes navigates to the old Hostinger deployment out of
+  habit** instead of `rebooty-ops-production.onrender.com` — if a sync or
+  any eBay action ever fails with the classic
+  `server_error`/500-from-token-endpoint signature again, check the URL bar
+  before assuming the Render migration regressed.
+- **Verification gotcha**: eBay API calls made through a server launched via
+  the Browser-pane `preview_start` tool fail with a TLS
+  `UNABLE_TO_VERIFY_LEAF_SIGNATURE` error — that sandbox appears to
+  intercept/proxy outbound HTTPS in a way Node's default trust store
+  rejects. Workaround that's worked repeatedly: launch via Bash
+  (`node src/server.js &`), then point the Browser pane at that URL with
+  `preview_start({url: ...})` for the visual/interactive parts. A plain
+  Bash-run script never hits this either.
+- eBay's real order/fulfillment data (pulled live, not from docs) exposes
+  real per-order fees (`totalMarketplaceFee`), real net payout
+  (`paymentSummary.totalDueSeller`), and real tracking/carrier/ship-date once
+  `orderFulfillmentStatus` is `FULFILLED` — but **no delivered status
+  anywhere**. Confirmed by reading the actual API response.
 
-**New wrinkle for Phase 8 specifically (raised 2026-08-25, not yet decided)**:
-user is now considering buying a new, catchier domain/brand name rather than
-keeping `ops.rebootytreasures.com`, motivated by feeling the app is turning
-into a real product with market fit ("the intake fills a gap in the reseller
-community"), not just an internal tool. This doesn't block Phases 6-7 at all
-(both use Render's own temporary `onrender.com` URL regardless). Only
-Phase 8's "point DNS at Render" step depends on which domain is final --
-confirm with the user which domain to actually cut over to before executing
-Phase 8, don't assume `ops.rebootytreasures.com` by default anymore.
+## Hostinger → Render migration (background, mostly historical)
 
-See the plan file for full detail on each of these — don't re-derive the
-reasoning, it's all there (why R2 not a persistent disk, why Sandbox not a
-disabled publish flow, the `APP_PUBLIC_URL` chicken-and-egg issue at cutover,
-etc).
+**Why**: eBay's OAuth token endpoint was 500ing specifically for requests
+from Hostinger's shared-hosting IP for weeks — confirmed via independent
+`fetch` and `curl` clients both getting a deliberate rejection from eBay's
+real backend, not a code bug. Combined with the user reconsidering
+"productize this as a SaaS someday" more seriously, that justified a real
+infrastructure move. Full phased plan, if the detailed history is ever
+needed: `C:\Users\lucas\.claude\plans\misty-riding-dawn.md`.
 
-## Hostinger/eBay networking issue (why this migration started)
+**Status: Phases 0–7 complete and verified** (persistent sessions, Docker,
+R2 photo storage, staging + production both provisioned on Render, real
+data migrated, a real production eBay publish confirmed working end to end,
+Hostinger's IP-reputation problem confirmed gone on Render's IP). **Only
+Phase 8 (DNS cutover) remains**, blocked on the domain decision above. Once
+decided: update `APP_PUBLIC_URL`, add the custom domain in Render, update
+DNS, re-run the Phase 7 verification checklist against the real domain
+(fresh TLS + DNS propagation are new variables), then leave Hostinger
+paused-but-present for a 2–4 week rollback window before decommissioning.
 
-**eBay's OAuth token endpoint 500s specifically for requests from Hostinger's
-server.** Confirmed via two independent HTTP clients (`fetch` and raw `curl`,
-via [`/sync/diagnose`](../src/routes/sync.js)) both hitting eBay's real
-backend and getting a deliberate rejection there — not a code bug, not a
-dropped connection. Current best theory: eBay's backend reacting to
-Hostinger's shared-hosting outbound IP (`212.1.209.194`) specifically.
-
-**Status as of 2026-08-22**: the finalized ticket
+A finalized support ticket about the Hostinger IP issue was submitted and
+Hostinger was "looking into it" as of 2026-08-22
 ([docs/hostinger-ebay-500-support-ticket.md](hostinger-ebay-500-support-ticket.md))
-was submitted to Hostinger support and **they are actively looking into it**
-(per the user, this session). Awaiting their reply — check there before
-assuming this is still open. Since the migration to Render is underway
-regardless (a static outbound IP there is the actual fix), Hostinger's
-response mostly matters now as a possible faster/interim resolution, not as
-the long-term plan.
-
-**Workaround still in use** for anything that needs to hit eBay's API before
-the migration completes: run the action from a local machine (or Claude
-Code's Bash access) against production data directly
-(`DB_CLIENT=pg DATABASE_URL=... APP_PUBLIC_URL=https://ops.rebootytreasures.com`).
+— now moot for the migration itself (Render's the permanent fix regardless)
+but check there if Hostinger ever actually responds, since it's still live
+during the rollback window.
 
 ## Other context (established, not changing)
 
 The app's folder structure (centralized `src/config/`, per-feature
-`src/views/` subfolders, `npm test` scaffold) was reorganized in an earlier
-session and is stable — see [DEPLOYMENT.md](../DEPLOYMENT.md) (still describes
-the *current* Hostinger deploy flow, will need rewriting once Render is live)
-and [README.md](../README.md) for layout.
+`src/views/` subfolders, `npm test` scaffold) is stable — see
+[DEPLOYMENT.md](../DEPLOYMENT.md) (still describes the Hostinger deploy flow,
+needs rewriting once Phase 8 lands) and [README.md](../README.md) for layout.
