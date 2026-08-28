@@ -135,6 +135,31 @@ async function fetchRecentOrders(accessToken) {
   return allOrders;
 }
 
+// Fetches the real tracking number/carrier/ship date for an order that
+// eBay reports as FULFILLED -- only called for orders not already marked
+// shipped in our own DB, so a normal sync doesn't re-fetch this for every
+// past sale every time. Uses the order's own fulfillmentHrefs (present once
+// a shipping label -- eBay's own or one whose tracking got pasted into eBay
+// -- has been recorded against the order); returns null for anything else,
+// including orders shipped via a separate tool (e.g. Pirate Ship) that
+// never gets reported back to eBay at all -- those need the manual
+// "mark shipped" fallback in the Orders UI instead.
+async function fetchShipmentDetails(accessToken, order) {
+  if (order.orderFulfillmentStatus !== 'FULFILLED') return null;
+  const href = order.fulfillmentHrefs?.[0];
+  if (!href) return null;
+
+  const res = await fetch(href, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  return {
+    trackingNumber: data.shipmentTrackingNumber || null,
+    shippingCarrier: data.shippingCarrierCode || null,
+    shippedDate: toDateOnly(data.shippedDate),
+  };
+}
+
 async function syncSoldOrders() {
   const accessToken = await getAccessToken(['https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly']);
   const orders = await fetchRecentOrders(accessToken);
@@ -142,9 +167,20 @@ async function syncSoldOrders() {
   let newSales = 0;
   let updatedSales = 0;
   let backfilledInventory = 0;
+  let markedShipped = 0;
 
   for (const order of orders) {
-    for (const lineItem of order.lineItems || []) {
+    // Real per-order eBay fee is available immediately at sale time,
+    // independent of shipping method -- but only unambiguous to attribute
+    // when the order has exactly one line item; skip rather than guess a
+    // split for multi-item orders.
+    const orderId = order.orderId || null;
+    const lineItems = order.lineItems || [];
+    const ebayActualFee = lineItems.length === 1 && order.totalMarketplaceFee?.value
+      ? Number(order.totalMarketplaceFee.value)
+      : null;
+
+    for (const lineItem of lineItems) {
       const itemId = String(lineItem.legacyItemId || '');
       if (!itemId) continue;
 
@@ -185,27 +221,52 @@ async function syncSoldOrders() {
         .where({ sku: inventoryRow.sku, platform: 'eBay', sale_date: saleDate })
         .first();
 
+      let saleRowId;
       if (existingSale) {
         await db('sales_log').where({ id: existingSale.id }).update({
           sale_price: salePrice,
           shipping_charged: shippingCharged,
+          order_id: orderId,
+          ebay_actual_fee: ebayActualFee,
           updated_at: db.fn.now(),
         });
+        saleRowId = existingSale.id;
         updatedSales += 1;
       } else {
-        await db('sales_log').insert({
-          sku: inventoryRow.sku,
-          platform: 'eBay',
-          sale_date: saleDate,
-          sale_price: salePrice,
-          shipping_charged: shippingCharged,
-        });
+        const [inserted] = await db('sales_log')
+          .insert({
+            sku: inventoryRow.sku,
+            platform: 'eBay',
+            sale_date: saleDate,
+            sale_price: salePrice,
+            shipping_charged: shippingCharged,
+            order_id: orderId,
+            ebay_actual_fee: ebayActualFee,
+          })
+          .returning('id');
+        saleRowId = inserted?.id ?? inserted;
         newSales += 1;
+      }
+
+      // Only worth checking fulfillment for a sale that isn't already
+      // marked shipped -- avoids a second HTTP call per past sale on every
+      // future sync run.
+      if (!existingSale?.shipped_date) {
+        const shipment = await fetchShipmentDetails(accessToken, order);
+        if (shipment?.trackingNumber) {
+          await db('sales_log').where({ id: saleRowId }).update({
+            tracking_number: shipment.trackingNumber,
+            shipping_carrier: shipment.shippingCarrier,
+            shipped_date: shipment.shippedDate,
+            updated_at: db.fn.now(),
+          });
+          markedShipped += 1;
+        }
       }
     }
   }
 
-  return { totalOrders: orders.length, newSales, updatedSales, backfilledInventory };
+  return { totalOrders: orders.length, newSales, updatedSales, backfilledInventory, markedShipped };
 }
 
 async function runSync() {

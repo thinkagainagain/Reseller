@@ -20,6 +20,24 @@ test('computeProfit applies percent and flat fee to revenue', () => {
   assert.ok(Math.abs(result.marginPct - (result.profit / 110) * 100) < 1e-9);
 });
 
+test('computeProfit prefers a real ebay_actual_fee over the estimated percent/flat fee', () => {
+  const result = computeProfit({
+    sale_price: 24.99,
+    shipping_charged: 5.86,
+    shipping_cost: 0,
+    other_fees: 0,
+    purchase_cost: 5,
+    fee_percent: 0.13,
+    flat_fee: 0.3,
+    ebay_actual_fee: 4.86,
+  });
+
+  // revenue = 30.85, real fee (4.86) used instead of 30.85*0.13+0.3 = 4.31
+  assert.ok(Math.abs(result.revenue - 30.85) < 1e-9);
+  assert.equal(result.platformFee, 4.86);
+  assert.ok(Math.abs(result.profit - (30.85 - 4.86 - 5)) < 1e-9);
+});
+
 test('computeProfit does not divide by zero when revenue is zero', () => {
   const result = computeProfit({
     sale_price: 0,

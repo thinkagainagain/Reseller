@@ -8,7 +8,12 @@ function computeProfit(sale) {
   const flatFee = Number(sale.flat_fee || 0);
 
   const revenue = salePrice + shippingCharged;
-  const platformFee = revenue * feePercent + flatFee;
+  // A real per-order eBay fee (pulled from the order itself) is more
+  // accurate than the estimated fee_percent/flat_fee -- prefer it when sync
+  // has captured one.
+  const platformFee = sale.ebay_actual_fee != null
+    ? Number(sale.ebay_actual_fee)
+    : revenue * feePercent + flatFee;
   const profit = revenue - platformFee - purchaseCost - shippingCost - otherFees;
   const marginPct = revenue > 0 ? (profit / revenue) * 100 : 0;
 

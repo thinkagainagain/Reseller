@@ -33,21 +33,6 @@ router.get('/inventory', async (req, res) => {
   res.render('inventory/inventory', { items });
 });
 
-router.get('/inventory/sold', async (req, res) => {
-  const items = await db('inventory')
-    .leftJoin('sales_log', 'inventory.sku', 'sales_log.sku')
-    .where('inventory.status', 'Sold')
-    .select(
-      'inventory.sku',
-      'inventory.item_name',
-      'inventory.bin_location',
-      'sales_log.sale_price',
-      'sales_log.sale_date',
-      'sales_log.platform'
-    )
-    .orderBy('sales_log.sale_date', 'desc');
-  res.render('inventory/sold', { items });
-});
 
 router.get('/inventory/death-pile', async (req, res) => {
   const items = await db('inventory')
@@ -123,7 +108,7 @@ router.post('/inventory/:sku/edit', async (req, res) => {
   const redirectMap = {
     queue: '/intake/queue',
     'death-pile': '/inventory/death-pile',
-    sold: '/inventory/sold',
+    sold: '/orders/completed',
   };
   res.redirect(redirectMap[return_to] || '/inventory');
 });
@@ -247,7 +232,7 @@ router.post('/inventory/:sku/delete', async (req, res) => {
   const redirectMap = {
     queue: '/intake/queue',
     'death-pile': '/inventory/death-pile',
-    sold: '/inventory/sold',
+    sold: '/orders/completed',
   };
   res.redirect(redirectMap[return_to] || '/inventory');
 });

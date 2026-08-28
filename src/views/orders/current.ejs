@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Orders</title>
+  <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
+</head>
+<body>
+  <main class="wide">
+    <h1>Orders — Current (<%= items.length %>)</h1>
+    <%- include('../partials/nav') %>
+
+    <p><a href="/orders/current">Current</a> | <a href="/orders/completed">Completed</a></p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Bin/Loc</th>
+            <th>Item</th>
+            <th>Platform</th>
+            <th>Sale Date</th>
+            <th>Sale Price</th>
+            <th>Mark Shipped</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.forEach(function(item) { %>
+            <tr>
+              <td><%= item.sku %></td>
+              <td><%= item.bin_location || '—' %></td>
+              <td><%= item.item_name || '—' %></td>
+              <td><%= item.platform || '—' %></td>
+              <td><%= item.sale_date || '—' %></td>
+              <td><%= item.sale_price ? '$' + Number(item.sale_price).toFixed(2) : '—' %></td>
+              <td>
+                <form method="POST" action="/orders/<%= item.id %>/ship" style="display:flex;gap:0.25rem;align-items:center;">
+                  <input type="text" name="tracking_number" placeholder="Tracking #" style="width:140px;margin:0;">
+                  <input type="text" name="shipping_carrier" placeholder="Carrier" style="width:80px;margin:0;">
+                  <button type="submit" class="button-secondary" style="width:auto;">Ship</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>

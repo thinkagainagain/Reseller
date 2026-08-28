@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ReBooty Ops — Sold</title>
+  <title>ReBooty Ops — Orders</title>
   <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
 </head>
 <body>
   <main class="wide">
-    <h1>Sold (<%= items.length %>)</h1>
+    <h1>Orders — Completed (<%= items.length %>)</h1>
     <%- include('../partials/nav') %>
+
+    <p><a href="/orders/current">Current</a> | <a href="/orders/completed">Completed</a></p>
 
     <div class="table-scroll">
       <table>
@@ -20,7 +22,10 @@
             <th>Bin/Loc</th>
             <th>Sale Price</th>
             <th>Platform</th>
-            <th>Sale Date</th>
+            <th>Shipped</th>
+            <th>Tracking</th>
+            <th>Carrier</th>
+            <th>eBay Fee</th>
           </tr>
         </thead>
         <tbody>
@@ -31,7 +36,10 @@
               <td><%= item.bin_location || '—' %></td>
               <td><%= item.sale_price ? '$' + Number(item.sale_price).toFixed(2) : '—' %></td>
               <td><%= item.platform || '—' %></td>
-              <td><%= item.sale_date || '—' %></td>
+              <td><%= item.shipped_date || '—' %></td>
+              <td><%= item.tracking_number || '—' %></td>
+              <td><%= item.shipping_carrier || '—' %></td>
+              <td><%= item.ebay_actual_fee ? '$' + Number(item.ebay_actual_fee).toFixed(2) : '—' %></td>
             </tr>
           <% }); %>
         </tbody>

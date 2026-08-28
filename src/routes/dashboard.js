@@ -48,7 +48,8 @@ router.get('/dashboard', async (req, res) => {
   const saleSelect = [
     'sales_log.sku', 'inventory.item_name', 'sales_log.platform', 'sales_log.sale_date',
     'sales_log.sale_price', 'sales_log.shipping_charged', 'sales_log.shipping_cost',
-    'sales_log.other_fees', 'inventory.purchase_cost', 'platform_fees.fee_percent', 'platform_fees.flat_fee',
+    'sales_log.other_fees', 'sales_log.ebay_actual_fee', 'inventory.purchase_cost',
+    'platform_fees.fee_percent', 'platform_fees.flat_fee',
   ];
 
   const recentSalesRaw = await db('sales_log')

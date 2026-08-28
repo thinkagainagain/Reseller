@@ -16,6 +16,7 @@ const syncRoutes = require('./routes/sync');
 const salesRoutes = require('./routes/sales');
 const skuExportRoutes = require('./routes/skuExport');
 const readyToPublishRoutes = require('./routes/readyToPublish');
+const ordersRoutes = require('./routes/orders');
 const storage = require('./lib/storage');
 
 const app = express();
@@ -78,6 +79,7 @@ app.use(requireAuth, syncRoutes);
 app.use(requireAuth, salesRoutes);
 app.use(requireAuth, skuExportRoutes);
 app.use(requireAuth, readyToPublishRoutes);
+app.use(requireAuth, ordersRoutes);
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
