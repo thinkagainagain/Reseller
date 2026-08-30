@@ -9,6 +9,7 @@ const {
   DeleteObjectCommand,
   DeleteObjectsCommand,
 } = require('@aws-sdk/client-s3');
+const { NodeHttpHandler } = require('@smithy/node-http-handler');
 const config = require('../config');
 
 // Driver-agnostic object storage for uploaded intake photos, keyed as
@@ -51,6 +52,14 @@ function getS3Client() {
         accessKeyId: config.storage.r2.accessKeyId,
         secretAccessKey: config.storage.r2.secretAccessKey,
       },
+      // Without explicit timeouts, a stalled socket to R2 hangs the AWS SDK
+      // request forever (no error, no response) -- confirmed live 2026-08-30,
+      // production image loads hung indefinitely instead of failing. These
+      // bound the hang so a bad connection surfaces as a fast error instead.
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 5000,
+        requestTimeout: 10000,
+      }),
     });
   }
   return s3Client;
