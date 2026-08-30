@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const db = require('../db');
-const nextSku = require('../lib/nextSku');
+const { nextSku } = require('../lib/nextSku');
 const storage = require('../lib/storage');
 
 const router = express.Router();
@@ -58,7 +58,7 @@ router.get('/intake/queue', async (req, res) => {
   const firstPhotoBySku = {};
   for (const photo of photos) {
     if (!firstPhotoBySku[photo.sku]) {
-      firstPhotoBySku[photo.sku] = photo.file_path;
+      firstPhotoBySku[photo.sku] = photo.file_path.replace('/uploads/', '/uploads/thumb/');
     }
   }
 

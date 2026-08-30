@@ -45,6 +45,15 @@ app.get('/uploads/:sku/:filename', (req, res) => {
     if (!res.headersSent) res.status(404).end();
   });
 });
+// A resized, cached copy for list views (Waiting to List, etc.) that don't
+// need full-resolution photos -- avoids shipping multi-MB phone photos to
+// render a small card image. See src/lib/storage.js for the caching scheme.
+app.get('/uploads/thumb/:sku/:filename', (req, res) => {
+  storage.streamThumbnail(`${req.params.sku}/${req.params.filename}`, res).catch((err) => {
+    console.error(`[uploads/thumb] ${req.params.sku}/${req.params.filename}:`, err.message);
+    if (!res.headersSent) res.status(404).end();
+  });
+});
 
 // Default express-session store is in-process memory -- fine for local SQLite
 // dev (always single-instance, throwaway data) but loses every session on
