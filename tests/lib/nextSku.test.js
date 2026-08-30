@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const nextSku = require('../../src/lib/nextSku');
+const { nextSku, maxSkuNumber, skuFromNumber } = require('../../src/lib/nextSku');
 
 // Matches how the real function calls it: db('inventory').select('sku')
 function fakeDb(rows) {
@@ -20,4 +20,12 @@ test('nextSku increments past the highest existing RT-#### SKU', async () => {
 test('nextSku ignores SKUs that do not match the RT- prefix', async () => {
   const sku = await nextSku(fakeDb([{ sku: 'RT-0002' }, { sku: 'LEGACY-9999' }]));
   assert.equal(sku, 'RT-0003');
+});
+
+test('maxSkuNumber computes the same max from an in-memory row batch, no query needed', () => {
+  assert.equal(maxSkuNumber([{ sku: 'RT-0007' }, { sku: 'RT-0003' }]), 7);
+});
+
+test('skuFromNumber pads and prefixes like nextSku does', () => {
+  assert.equal(skuFromNumber(8), 'RT-0008');
 });
