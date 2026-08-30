@@ -40,7 +40,8 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // src/lib/storage.js) rather than served as a static directory, so the same
 // route works whichever backend is active without the rest of the app caring.
 app.get('/uploads/:sku/:filename', (req, res) => {
-  storage.streamObject(`${req.params.sku}/${req.params.filename}`, res).catch(() => {
+  storage.streamObject(`${req.params.sku}/${req.params.filename}`, res).catch((err) => {
+    console.error(`[uploads] ${req.params.sku}/${req.params.filename}:`, err.message);
     if (!res.headersSent) res.status(404).end();
   });
 });
