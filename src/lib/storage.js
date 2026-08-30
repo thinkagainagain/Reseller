@@ -10,6 +10,7 @@ const {
   DeleteObjectsCommand,
 } = require('@aws-sdk/client-s3');
 const { NodeHttpHandler } = require('@smithy/node-http-handler');
+const sharp = require('sharp');
 const config = require('../config');
 
 // Driver-agnostic object storage for uploaded intake photos, keyed as
@@ -124,15 +125,57 @@ async function streamObject(key, res) {
   });
 }
 
+// Thumbnails are cached lazily under a derived key next to the original
+// (e.g. "RT-1451/1.jpg" -> "RT-1451/1.thumb.jpg") rather than generated at
+// upload time, so existing photos get thumbnails the first time they're
+// viewed instead of needing a backfill script.
+const THUMB_WIDTH = 500;
+const THUMB_QUALITY = 70;
+
+function thumbKeyFor(key) {
+  const ext = path.extname(key);
+  return `${key.slice(0, key.length - ext.length)}.thumb.jpg`;
+}
+
+async function getOrCreateThumbnail(key) {
+  const thumbKey = thumbKeyFor(key);
+
+  try {
+    return await readObject(thumbKey);
+  } catch {
+    // No cached thumbnail yet (or it failed to read) -- fall through and
+    // generate one from the original below.
+  }
+
+  const original = await readObject(key);
+  const thumbnail = await sharp(original)
+    .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+    .jpeg({ quality: THUMB_QUALITY })
+    .toBuffer();
+
+  await putObject(thumbKey, thumbnail);
+  return thumbnail;
+}
+
+async function streamThumbnail(key, res) {
+  const buffer = await getOrCreateThumbnail(key);
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.end(buffer);
+}
+
 async function deleteObject(key) {
   if (config.storage.driver === 'r2') {
     await getS3Client().send(
       new DeleteObjectCommand({ Bucket: config.storage.r2.bucket, Key: key })
     );
+    await getS3Client()
+      .send(new DeleteObjectCommand({ Bucket: config.storage.r2.bucket, Key: thumbKeyFor(key) }))
+      .catch(() => {});
     return;
   }
 
   await fs.unlink(path.join(LOCAL_ROOT, key)).catch(() => {});
+  await fs.unlink(path.join(LOCAL_ROOT, thumbKeyFor(key))).catch(() => {});
 }
 
 async function deleteByPrefix(prefix) {
@@ -155,4 +198,4 @@ async function deleteByPrefix(prefix) {
   await fs.rm(path.join(LOCAL_ROOT, prefix), { recursive: true, force: true }).catch(() => {});
 }
 
-module.exports = { putObject, readObject, streamObject, deleteObject, deleteByPrefix };
+module.exports = { putObject, readObject, streamObject, streamThumbnail, deleteObject, deleteByPrefix };
