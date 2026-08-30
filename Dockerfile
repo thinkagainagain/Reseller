@@ -6,7 +6,15 @@ COPY package.json package-lock.json ./
 # --omit=optional excludes better-sqlite3: it's the local-dev-only SQLite
 # fallback (DB_CLIENT=pg always in any container), needs a native build
 # toolchain to compile, and has no reason to ever be in this image.
-RUN npm ci --omit=dev --omit=optional
+# BUT --omit=optional excludes *every* optional dependency in the whole
+# tree, not just our own -- sharp's actual native binary
+# (@img/sharp-linux-x64) is published as one of sharp's own
+# optionalDependencies (that's how it ships per-platform binaries at all),
+# so the first line silently strips it too and `require('sharp')` throws
+# at startup with no binary to load. The second line re-adds just sharp's
+# subtree with optional deps included, leaving better-sqlite3 alone.
+RUN npm ci --omit=dev --omit=optional \
+    && npm install --no-save --omit=dev sharp
 
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
