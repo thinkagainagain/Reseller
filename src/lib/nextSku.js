@@ -1,9 +1,14 @@
 const PREFIX = 'RT-';
 const PAD_LENGTH = 4;
 
-async function nextSku(db) {
-  const rows = await db('inventory').select('sku');
+function skuFromNumber(n) {
+  return PREFIX + String(n).padStart(PAD_LENGTH, '0');
+}
 
+// Pulled out so callers that already have a batch of rows in memory (e.g. a
+// sync loop creating several new SKUs in one pass) can compute this once
+// instead of re-querying the whole table for every single new row.
+function maxSkuNumber(rows) {
   let max = 0;
   for (const { sku } of rows) {
     if (sku && sku.startsWith(PREFIX)) {
@@ -13,9 +18,12 @@ async function nextSku(db) {
       }
     }
   }
-
-  const next = max + 1;
-  return PREFIX + String(next).padStart(PAD_LENGTH, '0');
+  return max;
 }
 
-module.exports = nextSku;
+async function nextSku(db) {
+  const rows = await db('inventory').select('sku');
+  return skuFromNumber(maxSkuNumber(rows) + 1);
+}
+
+module.exports = { nextSku, maxSkuNumber, skuFromNumber };

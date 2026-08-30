@@ -1,6 +1,6 @@
 const db = require('../db');
 const config = require('../config');
-const nextSku = require('../lib/nextSku');
+const { nextSku, maxSkuNumber, skuFromNumber } = require('../lib/nextSku');
 const { getAccessToken } = require('./ebayAuth');
 const { getActiveListings } = require('./ebayTradingApi');
 
@@ -25,8 +25,20 @@ async function syncActiveListings() {
   const accessToken = await getAccessToken(['https://api.ebay.com/oauth/api_scope/sell.inventory.readonly']);
   const listings = await getActiveListings(accessToken);
 
-  let created = 0;
-  let updated = 0;
+  // One bulk read replaces what used to be up to 2 lookup queries per
+  // listing, sequentially, plus a full-table scan re-run for every single
+  // newly created SKU (nextSku querying the whole table fresh each call) --
+  // that per-item chatter, not the eBay API call itself, was what outran
+  // Render's request timeout during a real production sync.
+  const allInventory = await db('inventory').select(
+    'sku', 'ebay_item_id', 'bin_location', 'first_listed_date', 'date_listed', 'ebay_primary_photo_url'
+  );
+  const bySku = new Map(allInventory.map((row) => [row.sku, row]));
+  const byItemId = new Map(allInventory.filter((row) => row.ebay_item_id).map((row) => [row.ebay_item_id, row]));
+  let nextSkuNum = maxSkuNumber(allInventory);
+
+  const updates = [];
+  const inserts = [];
   let matchedBySku = 0;
   let binLocationBackfilled = 0;
 
@@ -36,20 +48,10 @@ async function syncActiveListings() {
     // already tracked as Waiting to List gets updated in place instead of
     // spawning a duplicate row. Falls back to eBay's Item ID for listings
     // we've already synced before.
-    let existing = null;
-    let matchedViaSku = false;
-
-    if (listing.sku) {
-      existing = await db('inventory').where({ sku: listing.sku }).first();
-      if (existing) {
-        matchedBySku += 1;
-        matchedViaSku = true;
-      }
-    }
-
-    if (!existing) {
-      existing = await db('inventory').where({ ebay_item_id: listing.itemId }).first();
-    }
+    let existing = listing.sku ? bySku.get(listing.sku) : undefined;
+    const matchedViaSku = Boolean(existing);
+    if (matchedViaSku) matchedBySku += 1;
+    if (!existing) existing = byItemId.get(listing.itemId);
 
     if (existing) {
       // If this item was only found via Item ID (not SKU), eBay's Custom
@@ -63,9 +65,9 @@ async function syncActiveListings() {
         && !looksLikeOwnSku(listing.sku);
       if (shouldBackfillBinLocation) binLocationBackfilled += 1;
 
-      await db('inventory')
-        .where({ sku: existing.sku })
-        .update({
+      updates.push({
+        sku: existing.sku,
+        fields: {
           item_name: listing.title,
           list_price: listing.price,
           status: 'Active',
@@ -78,8 +80,8 @@ async function syncActiveListings() {
           bin_location: shouldBackfillBinLocation ? listing.sku : existing.bin_location,
           ebay_primary_photo_url: listing.galleryUrl || existing.ebay_primary_photo_url,
           updated_at: db.fn.now(),
-        });
-      updated += 1;
+        },
+      });
     } else {
       // If eBay's Custom Label already looks like one of our own RT-####
       // SKUs, it IS the real identifier (this row just failed to match
@@ -88,8 +90,8 @@ async function syncActiveListings() {
       // legacy pre-app location code, preserved in bin_location same as
       // always.
       const ownSku = looksLikeOwnSku(listing.sku);
-      const sku = ownSku ? listing.sku : await nextSku(db);
-      await db('inventory').insert({
+      const sku = ownSku ? listing.sku : skuFromNumber(++nextSkuNum);
+      inserts.push({
         sku,
         item_name: listing.title,
         list_price: listing.price,
@@ -102,11 +104,29 @@ async function syncActiveListings() {
         bin_location: ownSku ? null : listing.sku || null,
       });
       if (!ownSku && listing.sku) binLocationBackfilled += 1;
-      created += 1;
     }
   }
 
-  return { totalListings: listings.length, created, updated, matchedBySku, binLocationBackfilled };
+  // All writes share one held connection/transaction instead of each
+  // paying its own connection-acquisition round trip -- the dominant cost
+  // against a remote pooled Postgres (Supabase), not the number of bytes
+  // moved.
+  await db.transaction(async (trx) => {
+    for (const { sku, fields } of updates) {
+      await trx('inventory').where({ sku }).update(fields);
+    }
+    if (inserts.length > 0) {
+      await trx('inventory').insert(inserts);
+    }
+  });
+
+  return {
+    totalListings: listings.length,
+    created: inserts.length,
+    updated: updates.length,
+    matchedBySku,
+    binLocationBackfilled,
+  };
 }
 
 async function fetchRecentOrders(accessToken) {
