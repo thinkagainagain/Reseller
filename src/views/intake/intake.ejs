@@ -20,6 +20,10 @@
       <label for="photos">Photo(s) of the item</label>
       <input type="file" id="photos" name="photos" accept="image/*" multiple required>
 
+      <label for="sku_prefix">SKU prefix</label>
+      <input type="text" id="sku_prefix" name="sku_prefix" value="<%= defaultPrefix %>" maxlength="10" style="text-transform:uppercase;">
+      <div class="stat-sub" style="margin:-0.75rem 0 0.5rem;">Numbers count up separately per prefix. Change this when listing on someone else's behalf -- leave it as <%= defaultPrefix %> otherwise.</div>
+
       <label for="item_name">Title (optional)</label>
       <input type="text" id="item_name" name="item_name" placeholder="e.g. Vintage Pyrex mixing bowl">
 
