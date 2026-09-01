@@ -1,82 +1,61 @@
 # Session handoff
 
-Last updated: 2026-08-30. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-09-01. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
 ## Where things stand right now
 
 **Production is live on Render** at `https://rebooty-ops-production.onrender.com`
-(no custom domain yet — see Phase 8 below). `main` is at commit `3da2e8d`, deployed
-and verified working against real production data this session.
+(no custom domain yet — see Phase 8 below). `main` is at commit `d65569f`, deployed
+and confirmed live.
 
-**`staging` is one commit ahead of `main`**, at `526d7e2` — it has everything `main`
+**`staging` is one commit ahead of `main`**, at `c12e989` — it has everything `main`
 has, plus the auto-sync-every-20-min feature (`scheduledSync.js`), which is
-**deliberately held back from production**. See item 1 below before promoting it.
+**deliberately held back from production**, no timeline set. To promote it later:
+cherry-pick `4125284`/`f64b5f9` (same commit, staging hash) onto `main`, no new work
+needed unless the approach itself changes.
 
-**What shipped today, in order** (all verified live against real production
-eBay/inventory/R2 data, not just locally):
-- **Fixed images hanging forever on Waiting to List.** The R2 client had no
-  request timeout, so a stalled Render→R2 connection hung the `/uploads/*`
-  route indefinitely with no error and nothing logged — confirmed live: a
-  real photo, a different real photo, and even a made-up nonexistent SKU all
-  hung 20s+ identically. Added a 5s connect / 10s request timeout
-  (`@smithy/node-http-handler`'s `NodeHttpHandler`) plus real error logging.
-  **The underlying cause of the stall itself was never identified** — R2 was
-  reachable fine from outside Render at the time, so this was likely a
-  transient Render→R2 network hiccup, not a code bug. If images ever fail to
-  load again, it'll now fail fast and log the real error instead of hanging
-  — check Render's logs for `[uploads]` first.
-- **Thumbnails on Waiting to List.** New cached, resized route
-  (`/uploads/thumb/:sku/:filename`, 500px wide, quality 70, generated once
-  and cached in R2 next to the original via `sharp`). An 8.7MB real photo
-  came back as a 20KB thumbnail — same ~99% reduction confirmed on real
-  production photos. Also capped `.card img`'s height (was unbounded
-  `width:100%`, so a portrait phone photo could fill most of the screen per
-  item) — verified that CSS rule is only used by this one page before
-  scoping the change.
-- **Batched the eBay active-listings sync.** `syncActiveListings` was doing
-  up to ~3 sequential DB round-trips per listing (2 existence lookups + a
-  full-table re-scan for every single new SKU via the old `nextSku`) — this,
-  not the eBay API call, was what outran Render's request timeout during a
-  real sync last session. Now does one bulk read to build in-memory
-  sku/item-id maps, then writes everything inside a single transaction.
-  Verified against the real production eBay account: 1,322 active listings,
-  1,308 updates + 14 inserts, correct counts, no errors. `nextSku`'s
-  row-scanning logic is now reusable (`maxSkuNumber`/`skuFromNumber` in
-  `src/lib/nextSku.js`) instead of being locked inside one function that
-  always re-queries.
-- **Fixed a Docker build bug that nearly shipped a broken deploy silently.**
-  The Dockerfile's `RUN npm ci --omit=dev --omit=optional` was added
-  earlier to exclude `better-sqlite3` (a real optional dep of ours), but
-  `--omit=optional` strips *every* optional dependency in the whole
-  resolved tree — including `sharp`'s own `optionalDependencies`, which is
-  how it ships its per-platform native binary. That silently produced a
-  container where `require('sharp')` throws at startup, crashing before
-  `/healthz` could ever respond — so Render just kept serving the *previous*
-  build indefinitely with no visible error, which looked exactly like a
-  stuck/slow deploy (repeated `302 → /login`, the old code's fallback for an
-  unmatched route) rather than a crash. Fixed by re-installing just sharp's
-  subtree (with optional deps included) right after the omit=optional pass.
-  **Worth remembering**: any *future* dependency that ships a native binary
-  via `optionalDependencies` (not just sharp) will hit this exact same trap
-  under the current Dockerfile — check for this pattern first if a deploy
-  ever "succeeds" but the app never actually comes up.
+**What shipped this session (2026-09-01), on top of everything from 2026-08-30**
+(R2 timeout fix, thumbnails, batched sync, the Docker `--omit=optional` fix — all
+already live, see git log if the detail is ever needed again):
+- **Configurable SKU prefix at Intake.** New "SKU prefix" field on the Intake
+  form, defaulting to `RT` (same as always), editable per item — e.g. `CC-0001`
+  when listing on someone else's behalf. Each prefix numbers independently
+  (`RT` and `CC` don't share a counter). Confirmed intentional design, not a
+  gap: there's still only **one** inventory table and **one** Waiting to
+  List / Inventory page — a different-prefix item shows up in the exact same
+  lists, same eBay sync/publish pipeline, distinguished only by its SKU
+  column. No separate "store" and nothing to navigate between.
+  - `nextSku(db, rawPrefix)` in `src/lib/nextSku.js` now normalizes
+    (uppercase, letters-only, capped at 10 chars, falls back to `RT` if
+    blank) and filters by prefix via SQL `LIKE` instead of always scanning
+    for `RT-`.
+  - `looksLikeOwnSku` in `src/services/ebaySync.js` was hardcoded to
+    `/^RT-\d+$/` — generalized to any short-letter-prefix + digits pattern,
+    otherwise a custom-prefix SKU published to eBay would get misfiled into
+    `bin_location` as a "legacy code" on the next sync instead of being
+    recognized as our own.
+  - Verified against the real local dev DB (1,338 real synced rows) and live
+    in production with a real photo submission.
 
 ## Open items to pick up next
 
-1. **Auto-sync-every-20-min — on hold, explicitly, as of 2026-08-30.** It's
-   fully built and live on `staging` (`scheduledSync.js`, calls the now-batched
-   `runSync()` on a timer) but the user asked to leave it off production for
-   now, no timeline given. We also talked through *how* to make sync
-   lighter — conclusion: eBay's Trading API (`GetMyeBaySelling`) has no
-   "only what changed" option for active listings, so there's no way to make
-   the eBay-fetch side itself incremental; the batching fix above was the
-   real lever (turns "hundreds of round-trips" into a handful) and
-   auto-sync will inherit that benefit automatically whenever it does get
-   promoted. When picking this back up: just cherry-pick `4125284`/`f64b5f9`
-   (same commit, staging hash) onto `main`, no new work needed unless the
-   cadence/approach itself needs to change.
+1. **HEIC photos don't generate thumbnails (found 2026-09-01, not fixed —
+   explicitly deferred by the user).** An iPhone photo saved as `.heic`
+   fails in `sharp`'s decoder: `heif: Decoder plugin generated an error:
+   Unspecified (7.0)` / `source: bad seek to ...`. Shows as a broken-image
+   icon on Waiting to List. **This is bigger than thumbnails** — HEIC isn't
+   displayable in most non-Safari browsers at all, so the *original* photo
+   almost certainly has the same problem, and eBay's listing-photo fetch
+   likely rejects it too once published. User's plan for now: manually
+   convert photos to JPEG before uploading, "as long as it's working." The
+   real fix, when picked back up: convert HEIC → JPEG server-side (via
+   `sharp`) at the moment of upload (both `POST /intake` and
+   `POST /inventory/:sku/photos` in `src/routes/`), so the *stored* original
+   is always a broadly-compatible format — thumbnails, browser display, and
+   eBay publish would all just work automatically off of that, no separate
+   fix needed for each.
 2. **Phase 8 DNS cutover** — the only remaining piece of the Hostinger→Render
    migration (full history below). Still blocked on one decision: user was
    considering a new, catchier domain/brand instead of
@@ -93,18 +72,24 @@ eBay/inventory/R2 data, not just locally):
    misleading — eBay silently ignores it regardless of what's sent (confirmed
    live twice), so "Publish" already means "goes live now," this code just
    doesn't admit it. Low priority.
-5. ~~Sync performance~~ — **fixed this session**, see above. Was the top
-   open item from the last handoff; no longer applies.
 
 ## Key non-obvious findings worth remembering
 
-- **The Docker `--omit=optional` trap** (full detail above) — any optional
-  native-binary dependency, not just sharp, will hit this.
+- **HEIC photos aren't safe to assume will "just work"** anywhere in this
+  app (see open item 1) — sharp's HEIF decoder has already failed on at
+  least one real user photo, and HEIC has no broad browser/eBay support
+  regardless. Any future feature touching photos should assume HEIC needs
+  conversion, not pass-through.
+- **The Docker `--omit=optional` trap**: any dependency that ships a native
+  binary via `optionalDependencies` (sharp already did — a future package
+  could too) will get silently stripped by the Dockerfile's
+  `--omit=optional` flag unless explicitly re-installed after, same as the
+  fix in the current Dockerfile. A deploy that "succeeds" but the app never
+  actually comes up (repeated `302 → /login` from the *previous* build) is
+  the symptom to watch for.
 - **AWS SDK v3's `S3Client` has no default request timeout.** A stalled
   socket hangs forever with no error unless you pass a `requestHandler`
-  with explicit `connectionTimeout`/`requestTimeout`
-  (`src/lib/storage.js`). Worth checking this is still in place if the R2
-  client config ever gets touched again.
+  with explicit `connectionTimeout`/`requestTimeout` (`src/lib/storage.js`).
 - **eBay ignores `SchedulingInfo`/`StartTime` for this account, even with an
   active Basic Store subscription** (which should be sufficient per eBay's
   own rules — that was the leading theory and it's ruled out). Confirmed
