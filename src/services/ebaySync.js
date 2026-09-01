@@ -13,12 +13,14 @@ function toDateOnly(isoString) {
   return isoString.slice(0, 10);
 }
 
-// A Custom Label that already looks like our own RT-#### scheme is a real
-// SKU that failed to match an existing row -- not a legacy pre-app location
-// code. Misfiling it into bin_location (the old assumption) both loses the
-// real identifier and spawns a duplicate row under a fresh generated SKU.
+// A Custom Label that already looks like one of our generated SKUs (any
+// prefix -- Intake's SKU Prefix field means it's not always "RT", see
+// src/lib/nextSku.js) is a real SKU that failed to match an existing row --
+// not a legacy pre-app location code. Misfiling it into bin_location (the
+// old assumption) both loses the real identifier and spawns a duplicate row
+// under a fresh generated SKU.
 function looksLikeOwnSku(value) {
-  return Boolean(value) && /^RT-\d+$/i.test(value);
+  return Boolean(value) && /^[A-Z]{1,10}-\d{3,}$/i.test(value);
 }
 
 async function syncActiveListings() {
@@ -295,4 +297,4 @@ async function runSync() {
   return { listings: listingsResult, orders: ordersResult };
 }
 
-module.exports = { syncActiveListings, syncSoldOrders, runSync };
+module.exports = { syncActiveListings, syncSoldOrders, runSync, looksLikeOwnSku };

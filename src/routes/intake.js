@@ -2,22 +2,22 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const db = require('../db');
-const { nextSku } = require('../lib/nextSku');
+const { nextSku, DEFAULT_PREFIX } = require('../lib/nextSku');
 const storage = require('../lib/storage');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/intake', (req, res) => {
-  res.render('intake/intake', { error: null });
+  res.render('intake/intake', { error: null, defaultPrefix: DEFAULT_PREFIX });
 });
 
 router.post('/intake', upload.array('photos', 10), async (req, res) => {
   if (!req.files || req.files.length === 0) {
-    return res.render('intake/intake', { error: 'Take at least one photo before saving.' });
+    return res.render('intake/intake', { error: 'Take at least one photo before saving.', defaultPrefix: DEFAULT_PREFIX });
   }
 
-  const sku = await nextSku(db);
+  const sku = await nextSku(db, req.body.sku_prefix);
 
   const photoRows = [];
   for (const [index, file] of req.files.entries()) {
