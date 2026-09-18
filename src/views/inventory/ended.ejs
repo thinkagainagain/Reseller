@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Ended</title>
+  <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
+</head>
+<body>
+  <main>
+    <h1>Ended (<%= items.length %>)</h1>
+    <%- include('../partials/nav') %>
+
+    <p>eBay sync found these out of stock or gone from your Active listings, with
+      no matching eBay order — nothing was changed on eBay's side, this is just
+      our own "figure out what happened" bucket. If it sold somewhere else
+      (Poshmark, Depop, Mercari, etc.), open it and use <strong>Log Sale</strong> to
+      record the real sale. Otherwise fix its status directly.</p>
+
+    <% if (items.length === 0) { %>
+      <p>Nothing waiting for review right now.</p>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Item</th>
+            <th>Last eBay Item ID</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.forEach(function(item) { %>
+            <tr onclick="location.href='/inventory/<%= item.sku %>/edit?from=ended'" style="cursor:pointer;">
+              <td><%= item.sku %></td>
+              <td><%= item.item_name || '—' %></td>
+              <td><%= item.ebay_item_id || '—' %></td>
+              <td><%= item.updated_at ? new Date(item.updated_at).toISOString().slice(0,10) : '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </main>
+</body>
+</html>

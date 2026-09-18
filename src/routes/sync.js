@@ -2,7 +2,7 @@ const express = require('express');
 const os = require('os');
 const { execFile } = require('child_process');
 const config = require('../config');
-const { runSync } = require('../services/ebaySync');
+const { runSync, syncSoldOrders } = require('../services/ebaySync');
 
 // Explicit callback->Promise wrapper rather than util.promisify(execFile) --
 // promisify relies on Node's internal custom-promisify hook for child_process
@@ -25,16 +25,32 @@ function execFileP(cmd, args, opts) {
 const router = express.Router();
 
 router.get('/sync', (req, res) => {
-  res.render('sync/sync', { result: null, error: null });
+  res.render('sync/sync', { result: null, backfillResult: null, error: null });
 });
 
 router.post('/sync/run', async (req, res) => {
   try {
     const { listings, orders } = await runSync();
-    res.render('sync/sync', { result: { listings, orders }, error: null });
+    res.render('sync/sync', { result: { listings, orders }, backfillResult: null, error: null });
   } catch (err) {
     console.error('Sync failed:', err);
-    res.render('sync/sync', { result: null, error: err.message });
+    res.render('sync/sync', { result: null, backfillResult: null, error: err.message });
+  }
+});
+
+// One-off wide-lookback order check, separate from the regular 3-day rolling
+// sync (kept narrow there so it stays fast on every run) -- for catching a
+// sale that happened further back than the normal window ever covers, e.g.
+// from the weeks auto-sync was held back. Same underlying Fulfillment API
+// order matching/Sold-status logic, just a longer `since` window.
+router.post('/sync/backfill-orders', async (req, res) => {
+  const days = Math.min(Math.max(Number(req.body.days) || 90, 1), 730);
+  try {
+    const backfillResult = await syncSoldOrders(days);
+    res.render('sync/sync', { result: null, backfillResult: { ...backfillResult, days }, error: null });
+  } catch (err) {
+    console.error('Order backfill failed:', err);
+    res.render('sync/sync', { result: null, backfillResult: null, error: err.message });
   }
 });
 

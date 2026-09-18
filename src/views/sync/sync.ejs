@@ -33,6 +33,8 @@
         <div><%= result.listings.updated %> updated</div>
         <div><%= result.listings.matchedBySku %> matched by SKU</div>
         <div><%= result.listings.binLocationBackfilled %> bin/loc backfilled</div>
+        <div><%= result.listings.endedOutOfStock %> moved to Ended (out of stock)</div>
+        <div><%= result.listings.endedMissing %> moved to Ended (gone from eBay)</div>
       </div>
       <div class="card">
         <strong>Orders</strong>
@@ -40,6 +42,33 @@
         <div><%= result.orders.newSales %> new sales</div>
         <div><%= result.orders.updatedSales %> updated</div>
         <div><%= result.orders.backfilledInventory %> inventory rows backfilled</div>
+      </div>
+    <% } %>
+
+    <hr style="margin:2rem 0;">
+
+    <h2>Backfill Old Orders</h2>
+    <p>The regular sync above only checks the last few days of eBay orders, to stay
+      fast. If an item looks stuck (e.g. shows up in <a href="/inventory/ended">Ended</a>
+      but you suspect it actually sold on eBay a while back), run this with a wider
+      date range to check further back — it uses the exact same order-matching logic,
+      just over more days. Nothing on eBay's side is touched either way; this only
+      reads eBay orders and updates our own inventory/sales records.</p>
+
+    <form method="POST" action="/sync/backfill-orders">
+      <label for="days">Look back this many days</label>
+      <input type="number" id="days" name="days" value="90" min="1" max="730">
+      <button type="submit">Backfill Orders</button>
+    </form>
+
+    <% if (backfillResult) { %>
+      <div class="card" style="margin-top:1rem;">
+        <strong>Order backfill (<%= backfillResult.days %> days)</strong>
+        <div><%= backfillResult.totalOrders %> checked</div>
+        <div><%= backfillResult.newSales %> new sales</div>
+        <div><%= backfillResult.updatedSales %> updated</div>
+        <div><%= backfillResult.backfilledInventory %> inventory rows backfilled</div>
+        <div><%= backfillResult.markedShipped %> marked shipped</div>
       </div>
     <% } %>
   </main>

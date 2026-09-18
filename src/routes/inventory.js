@@ -44,13 +44,25 @@ router.get('/inventory/death-pile', async (req, res) => {
   res.render('inventory/death-pile', { items, totalTiedUp });
 });
 
+// Items eBay sync found out-of-stock or gone from the seller's Active list
+// with no matching eBay order -- the listing itself is untouched on eBay,
+// this is purely our own bucket for "figure out what happened, then log the
+// sale (Log Sale) if it sold elsewhere or fix it up otherwise."
+router.get('/inventory/ended', async (req, res) => {
+  const items = await db('inventory')
+    .where({ status: 'Ended' })
+    .orderBy('updated_at', 'desc');
+
+  res.render('inventory/ended', { items });
+});
+
 router.get('/inventory/:sku/edit', async (req, res) => {
   const item = await db('inventory').where({ sku: req.params.sku }).first();
   if (!item) {
     return res.status(404).send('SKU not found');
   }
 
-  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold', scheduled: 'scheduled' };
+  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold', scheduled: 'scheduled', ended: 'ended' };
   const returnTo = returnMap[req.query.from] || 'inventory';
 
   const photos = await db('intake_photos').where({ sku: item.sku }).orderBy('id', 'asc');
@@ -108,6 +120,7 @@ router.post('/inventory/:sku/edit', async (req, res) => {
   const redirectMap = {
     queue: '/intake/queue',
     'death-pile': '/inventory/death-pile',
+    ended: '/inventory/ended',
     sold: '/orders/completed',
     scheduled: '/inventory/scheduled',
   };
@@ -123,7 +136,7 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
     return res.status(404).send('SKU not found');
   }
 
-  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold', scheduled: 'scheduled' };
+  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold', scheduled: 'scheduled', ended: 'ended' };
   const returnTo = returnMap[return_to] || 'inventory';
   const photos = await db('intake_photos').where({ sku }).orderBy('id', 'asc');
   const hasPhoto = photos.length > 0;
@@ -233,6 +246,7 @@ router.post('/inventory/:sku/delete', async (req, res) => {
   const redirectMap = {
     queue: '/intake/queue',
     'death-pile': '/inventory/death-pile',
+    ended: '/inventory/ended',
     sold: '/orders/completed',
     scheduled: '/inventory/scheduled',
   };
