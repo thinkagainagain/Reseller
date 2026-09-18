@@ -50,7 +50,7 @@ router.get('/inventory/:sku/edit', async (req, res) => {
     return res.status(404).send('SKU not found');
   }
 
-  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
+  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold', scheduled: 'scheduled' };
   const returnTo = returnMap[req.query.from] || 'inventory';
 
   const photos = await db('intake_photos').where({ sku: item.sku }).orderBy('id', 'asc');
@@ -109,6 +109,7 @@ router.post('/inventory/:sku/edit', async (req, res) => {
     queue: '/intake/queue',
     'death-pile': '/inventory/death-pile',
     sold: '/orders/completed',
+    scheduled: '/inventory/scheduled',
   };
   res.redirect(redirectMap[return_to] || '/inventory');
 });
@@ -122,7 +123,7 @@ router.post('/inventory/:sku/generate-ai', async (req, res) => {
     return res.status(404).send('SKU not found');
   }
 
-  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold' };
+  const returnMap = { queue: 'queue', 'death-pile': 'death-pile', sold: 'sold', scheduled: 'scheduled' };
   const returnTo = returnMap[return_to] || 'inventory';
   const photos = await db('intake_photos').where({ sku }).orderBy('id', 'asc');
   const hasPhoto = photos.length > 0;
@@ -233,6 +234,7 @@ router.post('/inventory/:sku/delete', async (req, res) => {
     queue: '/intake/queue',
     'death-pile': '/inventory/death-pile',
     sold: '/orders/completed',
+    scheduled: '/inventory/scheduled',
   };
   res.redirect(redirectMap[return_to] || '/inventory');
 });
