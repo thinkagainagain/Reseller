@@ -116,4 +116,4 @@ async function publishMultiple(skus) {
   return results;
 }
 
-module.exports = { publishToEbay, publishMultiple };
+module.exports = { publishToEbay, publishMultiple, SCHEDULE_DAYS_OUT };

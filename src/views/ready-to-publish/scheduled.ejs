@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Scheduled</title>
+  <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
+</head>
+<body>
+  <main class="wide">
+    <h1>Scheduled (<%= items.length %>)</h1>
+    <%- include('../partials/nav') %>
+
+    <p>Pushed to eBay and waiting for its scheduled start time. It'll move to
+      Inventory automatically once eBay activates it (checked every ~20 minutes).</p>
+
+    <% if (items.length === 0) { %>
+      <p>Nothing scheduled right now.</p>
+    <% } else { %>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Item</th>
+              <th>Pushed</th>
+              <th>Est. Live</th>
+              <th>eBay Item ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% items.forEach(function(item) { %>
+              <tr onclick="location.href='/inventory/<%= item.sku %>/edit?from=scheduled'" style="cursor:pointer;">
+                <td><%= item.sku %></td>
+                <td><%= item.item_name || '—' %></td>
+                <td><%= item.date_submitted || '—' %></td>
+                <td><%= item.estimatedLiveDate || '—' %></td>
+                <td>
+                  <% if (item.ebay_item_id) { %>
+                    <a href="https://www.ebay.com/itm/<%= item.ebay_item_id %>" target="_blank" rel="noopener" onclick="event.stopPropagation();"><%= item.ebay_item_id %></a>
+                  <% } else { %>
+                    —
+                  <% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </main>
+</body>
+</html>

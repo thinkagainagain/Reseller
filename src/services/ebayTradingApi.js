@@ -166,6 +166,7 @@ function buildAddFixedPriceItemRequest(listing) {
     <ConditionID>${listing.conditionId}</ConditionID>
     <StartPrice>${listing.price}</StartPrice>
     <Quantity>1</Quantity>
+    <ScheduleTime>${listing.startTime}</ScheduleTime>
     <SKU>${escapeXml(listing.sku)}</SKU>
     <Country>${listing.shipFromCountry}</Country>
     <Currency>USD</Currency>
@@ -192,9 +193,7 @@ ${buildPictureDetailsXml(listing.pictureUrls)}
         <ShippingProfileID>${listing.fulfillmentPolicyId}</ShippingProfileID>
       </SellerShippingProfile>
     </SellerProfiles>
-    <SchedulingInfo>
-      <StartTime>${listing.startTime}</StartTime>
-    </SchedulingInfo>${buildItemSpecificsXml(listing.itemSpecifics)}
+${buildItemSpecificsXml(listing.itemSpecifics)}
   </Item>
 </AddFixedPriceItemRequest>`;
 }
