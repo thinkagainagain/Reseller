@@ -38,11 +38,17 @@ function rollUp(rows, keyFn) {
 }
 
 router.get('/dashboard', async (req, res) => {
-  const [active, waiting, deathPile, sold] = await Promise.all([
+  const [active, waiting, deathPile, sold, ended, soldElsewhere] = await Promise.all([
     db('inventory').where({ status: 'Active' }).count('* as count').first(),
     db('inventory').where({ status: 'Intake' }).count('* as count').sum('purchase_cost as tiedUp').first(),
     db('inventory').where({ status: 'Death Pile' }).count('* as count').sum('purchase_cost as tiedUp').first(),
     db('inventory').where({ status: 'Sold' }).count('* as count').first(),
+    db('inventory').where({ status: 'Ended' }).count('* as count').first(),
+    // "Sold Elsewhere" -- items sold off-eBay (Poshmark, Depop, Mercari, etc.)
+    // via the manual Log Sale flow. All-time, not windowed like the profit
+    // charts below, since these are typically low-volume and the point is
+    // just visibility that they happened at all.
+    db('sales_log').whereNot({ platform: 'eBay' }).count('* as count').sum('sale_price as revenue').first(),
   ]);
 
   const saleSelect = [
@@ -104,6 +110,9 @@ router.get('/dashboard', async (req, res) => {
     deathPileCount: Number(deathPile.count),
     deathPileTiedUp: Number(deathPile.tiedUp || 0),
     soldCount: Number(sold.count),
+    endedCount: Number(ended.count),
+    soldElsewhereCount: Number(soldElsewhere.count),
+    soldElsewhereRevenue: Number(soldElsewhere.revenue || 0),
     recentSales,
     monthlyProfit,
     platformProfit,

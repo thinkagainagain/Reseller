@@ -23,6 +23,19 @@ function looksLikeOwnSku(value) {
   return Boolean(value) && /^[A-Z]{1,10}-\d{3,}$/i.test(value);
 }
 
+// A listing still returned by ActiveList but with nothing left to sell
+// (eBay's "Out of Stock" control keeps it listed at 0 qty rather than
+// ending it) isn't really active for our purposes -- park an Active row in
+// Ended for manual review instead of leaving it look sellable. Only ever
+// downgrades a row we already considered Active -- never reopens/overwrites
+// one already resolved to Sold, Death Pile, etc. syncSoldOrders (run right
+// after this in a full sync) still gets the final say: if it finds a real
+// order for this item, it overwrites Ended back to Sold.
+function resolveActiveListingStatus(existingStatus, quantityAvailable) {
+  if (quantityAvailable !== 0) return 'Active';
+  return existingStatus === 'Active' ? 'Ended' : existingStatus;
+}
+
 async function syncActiveListings() {
   const accessToken = await getAccessToken(['https://api.ebay.com/oauth/api_scope/sell.inventory.readonly']);
   const listings = await getActiveListings(accessToken);
@@ -33,7 +46,7 @@ async function syncActiveListings() {
   // that per-item chatter, not the eBay API call itself, was what outran
   // Render's request timeout during a real production sync.
   const allInventory = await db('inventory').select(
-    'sku', 'ebay_item_id', 'bin_location', 'first_listed_date', 'date_listed', 'ebay_primary_photo_url'
+    'sku', 'status', 'ebay_item_id', 'bin_location', 'first_listed_date', 'date_listed', 'ebay_primary_photo_url'
   );
   const bySku = new Map(allInventory.map((row) => [row.sku, row]));
   const byItemId = new Map(allInventory.filter((row) => row.ebay_item_id).map((row) => [row.ebay_item_id, row]));
@@ -43,6 +56,8 @@ async function syncActiveListings() {
   const inserts = [];
   let matchedBySku = 0;
   let binLocationBackfilled = 0;
+  let endedOutOfStock = 0;
+  let endedMissing = 0;
 
   for (const listing of listings) {
     // Match by our own SKU first (set via eBay's "Custom Label" field when
@@ -67,12 +82,15 @@ async function syncActiveListings() {
         && !looksLikeOwnSku(listing.sku);
       if (shouldBackfillBinLocation) binLocationBackfilled += 1;
 
+      const newStatus = resolveActiveListingStatus(existing.status, listing.quantityAvailable);
+      if (newStatus === 'Ended' && existing.status !== 'Ended') endedOutOfStock += 1;
+
       updates.push({
         sku: existing.sku,
         fields: {
           item_name: listing.title,
           list_price: listing.price,
-          status: 'Active',
+          status: newStatus,
           ebay_item_id: listing.itemId,
           // first_listed_date is set once and never overwritten -- it's the
           // "time to list" anchor, so a relist under a new Item ID must not
@@ -109,6 +127,21 @@ async function syncActiveListings() {
     }
   }
 
+  // A row that was Active last sync but isn't in this fresh ActiveList pull
+  // at all (not even at 0 qty) means the listing itself ended on eBay --
+  // sold without Out of Stock control, or ended manually. Same Ended
+  // treatment as the 0-qty case above, and same deferral to syncSoldOrders
+  // for the final word on whether it actually sold.
+  const seenItemIds = new Set(listings.map((listing) => listing.itemId));
+  const updatedSkus = new Set(updates.map((update) => update.sku));
+  for (const row of allInventory) {
+    if (row.status !== 'Active' || !row.ebay_item_id) continue;
+    if (updatedSkus.has(row.sku)) continue; // already handled above (matched this pull)
+    if (seenItemIds.has(row.ebay_item_id)) continue; // shouldn't happen given the check above, but stay safe
+    updates.push({ sku: row.sku, fields: { status: 'Ended', updated_at: db.fn.now() } });
+    endedMissing += 1;
+  }
+
   // All writes share one held connection/transaction instead of each
   // paying its own connection-acquisition round trip -- the dominant cost
   // against a remote pooled Postgres (Supabase), not the number of bytes
@@ -128,11 +161,13 @@ async function syncActiveListings() {
     updated: updates.length,
     matchedBySku,
     binLocationBackfilled,
+    endedOutOfStock,
+    endedMissing,
   };
 }
 
-async function fetchRecentOrders(accessToken) {
-  const since = new Date(Date.now() - ORDER_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+async function fetchRecentOrders(accessToken, lookbackDays) {
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
   const filter = `lastmodifieddate:[${since}..]`;
 
   const allOrders = [];
@@ -182,9 +217,9 @@ async function fetchShipmentDetails(accessToken, order) {
   };
 }
 
-async function syncSoldOrders() {
+async function syncSoldOrders(lookbackDays = ORDER_LOOKBACK_DAYS) {
   const accessToken = await getAccessToken(['https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly']);
-  const orders = await fetchRecentOrders(accessToken);
+  const orders = await fetchRecentOrders(accessToken, lookbackDays);
 
   let newSales = 0;
   let updatedSales = 0;
@@ -297,4 +332,4 @@ async function runSync() {
   return { listings: listingsResult, orders: ordersResult };
 }
 
-module.exports = { syncActiveListings, syncSoldOrders, runSync, looksLikeOwnSku };
+module.exports = { syncActiveListings, syncSoldOrders, runSync, looksLikeOwnSku, resolveActiveListingStatus };

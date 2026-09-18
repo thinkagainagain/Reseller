@@ -1,4 +1,4 @@
-const STATUSES = ['Intake', 'Ready to Publish', 'Scheduled', 'Active', 'Sold', 'Death Pile', 'Donated', 'Trashed', 'Returned'];
+const STATUSES = ['Intake', 'Ready to Publish', 'Scheduled', 'Active', 'Ended', 'Sold', 'Death Pile', 'Donated', 'Trashed', 'Returned'];
 
 const CATEGORIES = [
   'Clothing', 'Shoes', 'Accessories', 'Electronics', 'Home Goods',
