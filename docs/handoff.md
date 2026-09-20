@@ -1,14 +1,16 @@
 # Session handoff
 
-Last updated: 2026-09-18. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-09-20. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
 ## Where things stand right now
 
 **Production is live on Render** at `https://rebooty-ops-production.onrender.com`
-(no custom domain yet — see Phase 8 below). `main` is at commit `a72aeb0`, deployed
-and confirmed live. `staging` and `main` are in sync (no gap between them right now).
+(no custom domain yet — see Phase 8 below), deployed from `main`. As of 2026-09-20,
+`main` has everything below through the bin-location import; the **Inventory Check**
+feature (see "Shipped 2026-09-20") is on `staging` only, waiting on the user's OK to
+merge to `main` — check `git log origin/main..origin/staging` before assuming.
 
 The auto-sync-every-20-min feature (`scheduledSync.js`), previously held back from
 production with no timeline set, **is now live** — promoted 2026-09-17.
@@ -52,6 +54,31 @@ production with no timeline set, **is now live** — promoted 2026-09-17.
   `sales_log` rows where `platform != 'eBay'` — Poshmark/Depop/Mercari sales
   logged via the existing "Log Sale" flow) and an "Ended" count tile.
 
+**Shipped 2026-09-20** (physical-inventory tooling; local bookkeeping only, nothing
+sent to eBay):
+
+- **Import Bin Locations** (`/inventory/import-bins`, live on `main`): paste columns
+  copied from Excel (SKU + Location; header row required if more than two columns),
+  preview exactly what will be set/changed/skipped, then apply. Blank locations and a
+  literal "SOLD" are skipped, so a re-upload can never wipe a bin. Apply re-validates
+  against the live DB. Logic in `src/lib/binImport.js` (unit tested). Used for the
+  coffee-mug sheet on 2026-09-20 and confirmed working in production. Reason it's an
+  in-app page: production's database credentials live only in Render, so scripts run
+  from the dev machine can't reach it.
+- **Inventory Check** (`/inventory/check`, **on `staging` only, not yet merged**):
+  search by keyword (all words must match SKU/title/bin/eBay category), bin location
+  (exact, plus "(no location set)"), category, status (default "on hand" = everything
+  except Sold/Donated/Trashed/Returned), then download an `.xlsx` grouped by bin with
+  the same SKU/Title/Location/Found? columns the import reads, so a checked sheet pastes
+  straight back in. Print-ready (one page wide, repeated header row, page numbers). Uses
+  the new `exceljs` dependency. Logic in `src/lib/inventoryCheck.js` (unit tested).
+  - Bin dropdown = distinct bins currently on at least one on-hand item, not a master
+    list; `bin_location` is free text on the edit page, so a new bin is just typed
+    there (or arrives via import) and appears in the dropdown automatically.
+  - The category dropdown hides itself when no item has a category — currently true for
+    every synced eBay listing (`category` is only set for items created through
+    Intake), so category search is effectively unused until that field is populated.
+
 ## Open items to pick up next
 
 1. **Watch `/inventory/ended` over the next several syncs.** This is brand
@@ -93,6 +120,13 @@ production with no timeline set, **is now live** — promoted 2026-09-17.
    needs Style/Department/Dress Length, none of which have fields today.
    Deliberately deferred — needs flexible per-SKU field storage (a key/value
    table), not more fixed columns. Scoped as its own session.
+6. **Items not found during a physical inventory check — noted, deliberately not
+   built (user, 2026-09-20).** The Inventory Check sheet has a "Found?" column, but
+   re-importing only reads SKU + Location; a not-found mark does nothing in the app.
+   User's call: no action for now, because items are spread across many bins and are
+   checked one bin at a time, so some simply take longer to find — an early "missing"
+   flag would be mostly false alarms. If picked up later, options discussed were a
+   review bucket (like `Ended`) or a note on the item; ask before building either.
 
 ## Key non-obvious findings worth remembering
 
