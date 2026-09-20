@@ -18,6 +18,7 @@ const skuExportRoutes = require('./routes/skuExport');
 const readyToPublishRoutes = require('./routes/readyToPublish');
 const ordersRoutes = require('./routes/orders');
 const binImportRoutes = require('./routes/binImport');
+const inventoryCheckRoutes = require('./routes/inventoryCheck');
 const storage = require('./lib/storage');
 const { startScheduledSync } = require('./services/scheduledSync');
 
@@ -93,6 +94,7 @@ app.use(requireAuth, skuExportRoutes);
 app.use(requireAuth, readyToPublishRoutes);
 app.use(requireAuth, ordersRoutes);
 app.use(requireAuth, binImportRoutes);
+app.use(requireAuth, inventoryCheckRoutes);
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 

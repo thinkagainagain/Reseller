@@ -1,14 +1,15 @@
 # Session handoff
 
-Last updated: 2026-09-18. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-09-20. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
 ## Where things stand right now
 
 **Production is live on Render** at `https://rebooty-ops-production.onrender.com`
-(no custom domain yet — see Phase 8 below). `main` is at commit `a72aeb0`, deployed
-and confirmed live. `staging` and `main` are in sync (no gap between them right now).
+(no custom domain yet — see Phase 8 below), deployed from `main`. As of 2026-09-20,
+`main` and `staging` are in sync and everything below is live, including Inventory
+Check and the multer/qs/express security update.
 
 The auto-sync-every-20-min feature (`scheduledSync.js`), previously held back from
 production with no timeline set, **is now live** — promoted 2026-09-17.
@@ -52,6 +53,37 @@ production with no timeline set, **is now live** — promoted 2026-09-17.
   `sales_log` rows where `platform != 'eBay'` — Poshmark/Depop/Mercari sales
   logged via the existing "Log Sale" flow) and an "Ended" count tile.
 
+**Shipped 2026-09-20** (physical-inventory tooling; local bookkeeping only, nothing
+sent to eBay):
+
+- **Import Bin Locations** (`/inventory/import-bins`, live on `main`): paste columns
+  copied from Excel (SKU + Location; header row required if more than two columns),
+  preview exactly what will be set/changed/skipped, then apply. Blank locations and a
+  literal "SOLD" are skipped, so a re-upload can never wipe a bin. Apply re-validates
+  against the live DB. Logic in `src/lib/binImport.js` (unit tested). Used for the
+  coffee-mug sheet on 2026-09-20 and confirmed working in production. Reason it's an
+  in-app page: production's database credentials live only in Render, so scripts run
+  from the dev machine can't reach it.
+- **Inventory Check** (`/inventory/check`, live on `main`):
+  search by keyword (all words must match SKU/title/bin/eBay category), bin location
+  (exact, plus "(no location set)"), category, status (default "on hand" = everything
+  except Sold/Donated/Trashed/Returned), then download an `.xlsx` grouped by bin with
+  the same SKU/Title/Location/Found? columns the import reads, so a checked sheet pastes
+  straight back in. Print-ready (one page wide, repeated header row, page numbers). Uses
+  the new `exceljs` dependency. Logic in `src/lib/inventoryCheck.js` (unit tested).
+  - Bin dropdown = distinct bins currently on at least one on-hand item, not a master
+    list; `bin_location` is free text on the edit page, so a new bin is just typed
+    there (or arrives via import) and appears in the dropdown automatically.
+  - The category dropdown hides itself when no item has a category — currently true for
+    every synced eBay listing (`category` is only set for items created through
+    Intake), so category search is effectively unused until that field is populated.
+
+- **Security update**: `npm audit fix` (non-forced) bumped multer 2.2.0 → 2.4.0
+  (cleared a HIGH DoS advisory on the photo-upload path), plus express, body-parser
+  and qs by patch/minor. Verified with real multi-photo intake/add-photo uploads.
+  One moderate warning remains on purpose: `uuid` via `exceljs` — not exploitable as
+  used, and npm's only fix is a breaking downgrade of exceljs, so leave it.
+
 ## Open items to pick up next
 
 1. **Watch `/inventory/ended` over the next several syncs.** This is brand
@@ -93,6 +125,25 @@ production with no timeline set, **is now live** — promoted 2026-09-17.
    needs Style/Department/Dress Length, none of which have fields today.
    Deliberately deferred — needs flexible per-SKU field storage (a key/value
    table), not more fixed columns. Scoped as its own session.
+6. **Items not found during a physical inventory check — noted, deliberately not
+   built (user, 2026-09-20).** The Inventory Check sheet has a "Found?" column, but
+   re-importing only reads SKU + Location; a not-found mark does nothing in the app.
+   User's call: no action for now, because items are spread across many bins and are
+   checked one bin at a time, so some simply take longer to find — an early "missing"
+   flag would be mostly false alarms. If picked up later, options discussed were a
+   review bucket (like `Ended`) or a note on the item; ask before building either.
+7. **A failed photo save can crash the whole app process (found 2026-09-20, not
+   fixed — offered, user hasn't decided).** Express 4 doesn't catch errors from
+   `async` route handlers, and `POST /intake` / `POST /inventory/:sku/photos`
+   (`await storage.putObject(...)`) have no try/catch, so an R2 failure (seen locally
+   as a TLS error; in production it'd be an R2 outage/timeout) is an unhandled
+   rejection that exits the process — Render restarts it, but the user gets a dropped
+   request instead of an error message. Fix if wanted: wrap those handlers (or add a
+   small async-error wrapper) so it renders an error page instead.
+   Also worth knowing: the local `.env` points `R2_BUCKET` at the **staging** bucket, so
+   a normal local run writes photos to real cloud storage. To test uploads locally
+   without that, launch with `R2_BUCKET= EBAY_CLIENT_ID= node src/server.js` (local disk
+   storage, and no eBay auto-sync mutating the dev DB).
 
 ## Key non-obvious findings worth remembering
 
