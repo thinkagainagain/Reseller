@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReBooty Ops — Import Bin Locations</title>
+  <link rel="stylesheet" href="/css/style.css?v=<%= cssVersion %>">
+</head>
+<body>
+  <main class="wide">
+    <h1>Import Bin Locations</h1>
+    <%- include('../partials/nav') %>
+
+    <% if (applied !== null) { %>
+      <div class="card">
+        <strong>Done — updated <%= applied %> bin location<%= applied === 1 ? '' : 's' %>.</strong>
+        <div><a href="/inventory">Back to Inventory</a> · <a href="/inventory/import-bins">Import another</a></div>
+      </div>
+    <% } else { %>
+      <p>In your spreadsheet, select the columns (including the header row with
+        <strong>SKU</strong> and <strong>Location</strong>), copy, and paste below. You'll
+        see exactly what will change before anything is saved. This only updates the
+        bin location in this app — nothing is sent to eBay.</p>
+
+      <% if (error) { %><div class="error"><%= error %></div><% } %>
+
+      <form method="POST" action="/inventory/import-bins/preview">
+        <textarea name="pasted" rows="8" placeholder="SKU&#9;Title&#9;Location&#9;Found?"><%= pasted %></textarea>
+        <button type="submit">Preview Changes</button>
+      </form>
+
+      <% if (plan) { %>
+        <%
+          const labels = {
+            set: 'Will set (was empty)', change: 'Will change existing bin', unchanged: 'Already correct',
+            missing: 'SKU not found', blank: 'Skipped — no location', 'not-a-location': 'Skipped — not a location',
+            duplicate: 'Skipped — duplicate', invalid: 'Skipped — unreadable',
+          };
+          const applyCount = (plan.counts.set || 0) + (plan.counts.change || 0);
+        %>
+        <h2 class="section-heading">Preview</h2>
+        <div class="card">
+          <% Object.keys(labels).forEach(function(kind) { if (plan.counts[kind]) { %>
+            <div><strong><%= plan.counts[kind] %></strong> — <%= labels[kind] %></div>
+          <% } }); %>
+        </div>
+
+        <% if (applyCount > 0) { %>
+          <form method="POST" action="/inventory/import-bins/apply">
+            <input type="hidden" name="updates" value="<%= updatesJson %>">
+            <button type="submit" onclick="return confirm('Update <%= applyCount %> bin location(s)?');">Apply <%= applyCount %> Update<%= applyCount === 1 ? '' : 's' %></button>
+          </form>
+        <% } else { %>
+          <p>Nothing to update.</p>
+        <% } %>
+
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>SKU</th><th>Item</th><th>Current bin</th><th>New bin</th><th>Result</th></tr></thead>
+            <tbody>
+              <% plan.items.forEach(function(item) { %>
+                <tr <%- item.kind === 'change' ? 'style="background:#fefcbf;"' : '' %>>
+                  <td><%= item.sku || '—' %></td>
+                  <td><%= item.itemName || '—' %></td>
+                  <td><%= item.currentBin || '—' %></td>
+                  <td><%= item.location || '—' %></td>
+                  <td><%= labels[item.kind] %><%= ['invalid','duplicate'].includes(item.kind) ? ' (' + item.note + ')' : '' %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    <% } %>
+  </main>
+</body>
+</html>
