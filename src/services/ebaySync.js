@@ -36,6 +36,32 @@ function resolveActiveListingStatus(existingStatus, quantityAvailable) {
   return existingStatus === 'Active' ? 'Ended' : existingStatus;
 }
 
+// Decides the SKU for a listing that didn't match any existing inventory row
+// (a genuinely new insert). Prefers the listing's own Custom Label when it
+// looks like one of our SKUs, but two different eBay listings can carry the
+// same stale/copied Custom Label -- confirmed in production, where this
+// collided on the DB's unique sku constraint and rolled back the *entire*
+// sync batch, not just the one bad listing. `skusUsedThisBatch` is a Set
+// this call may add to; `generateNext` mints a fresh sequential SKU (already
+// bound to the running counter) each time it's called, and is also used to
+// skip past any number an earlier "own SKU" listing in this same batch
+// already claimed but that was never actually in the DB to begin with.
+function pickSkuForNewListing(rawListingSku, skusUsedThisBatch, generateNext) {
+  const ownSku = looksLikeOwnSku(rawListingSku);
+  if (ownSku && !skusUsedThisBatch.has(rawListingSku)) {
+    skusUsedThisBatch.add(rawListingSku);
+    return { sku: rawListingSku, usingOwnSku: true, isDuplicateLabel: false };
+  }
+
+  let sku;
+  do {
+    sku = generateNext();
+  } while (skusUsedThisBatch.has(sku));
+  skusUsedThisBatch.add(sku);
+
+  return { sku, usingOwnSku: false, isDuplicateLabel: ownSku };
+}
+
 async function syncActiveListings() {
   const accessToken = await getAccessToken(['https://api.ebay.com/oauth/api_scope/sell.inventory.readonly']);
   const listings = await getActiveListings(accessToken);
@@ -54,9 +80,17 @@ async function syncActiveListings() {
 
   const updates = [];
   const inserts = [];
+  // Guards against two different listings sharing the same Custom Label on
+  // eBay's side (seen in production: a relist or a copied listing can carry
+  // over the old SKU) -- without this, the second "ownSku" insert collides
+  // with the first on the DB's unique sku constraint and the whole batch
+  // transaction below rolls back, silently skipping every listing in this
+  // sync, not just the bad one.
+  const skusUsedThisBatch = new Set();
   let matchedBySku = 0;
   let binLocationBackfilled = 0;
   let endedOutOfStock = 0;
+  let duplicateCustomLabels = 0;
   let endedMissing = 0;
 
   for (const listing of listings) {
@@ -109,8 +143,21 @@ async function syncActiveListings() {
       // burying the real SKU in bin_location. Otherwise it's a genuine
       // legacy pre-app location code, preserved in bin_location same as
       // always.
-      const ownSku = looksLikeOwnSku(listing.sku);
-      const sku = ownSku ? listing.sku : skuFromNumber(++nextSkuNum);
+      const { sku, usingOwnSku, isDuplicateLabel } = pickSkuForNewListing(
+        listing.sku,
+        skusUsedThisBatch,
+        () => skuFromNumber(++nextSkuNum)
+      );
+
+      if (isDuplicateLabel) {
+        duplicateCustomLabels += 1;
+        console.error(
+          `[scheduled sync] eBay item ${listing.itemId} has Custom Label "${listing.sku}", which another ` +
+            `listing in this same sync already claimed -- generating a new SKU instead. Check eBay for ` +
+            'a duplicated/copied listing with a stale Custom Label.'
+        );
+      }
+
       inserts.push({
         sku,
         item_name: listing.title,
@@ -121,9 +168,9 @@ async function syncActiveListings() {
         date_listed: toDateOnly(listing.startTime),
         date_acquired: null,
         ebay_primary_photo_url: listing.galleryUrl || null,
-        bin_location: ownSku ? null : listing.sku || null,
+        bin_location: usingOwnSku ? null : listing.sku || null,
       });
-      if (!ownSku && listing.sku) binLocationBackfilled += 1;
+      if (!usingOwnSku && listing.sku) binLocationBackfilled += 1;
     }
   }
 
@@ -162,6 +209,7 @@ async function syncActiveListings() {
     matchedBySku,
     binLocationBackfilled,
     endedOutOfStock,
+    duplicateCustomLabels,
     endedMissing,
   };
 }
@@ -332,4 +380,11 @@ async function runSync() {
   return { listings: listingsResult, orders: ordersResult };
 }
 
-module.exports = { syncActiveListings, syncSoldOrders, runSync, looksLikeOwnSku, resolveActiveListingStatus };
+module.exports = {
+  syncActiveListings,
+  syncSoldOrders,
+  runSync,
+  looksLikeOwnSku,
+  resolveActiveListingStatus,
+  pickSkuForNewListing,
+};

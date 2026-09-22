@@ -35,6 +35,9 @@
         <div><%= result.listings.binLocationBackfilled %> bin/loc backfilled</div>
         <div><%= result.listings.endedOutOfStock %> moved to Ended (out of stock)</div>
         <div><%= result.listings.endedMissing %> moved to Ended (gone from eBay)</div>
+        <% if (result.listings.duplicateCustomLabels > 0) { %>
+          <div style="color:#c53030;"><%= result.listings.duplicateCustomLabels %> duplicate Custom Label(s) found on eBay -- a new SKU was generated instead. Check eBay for a copied/relisted item carrying a stale label.</div>
+        <% } %>
       </div>
       <div class="card">
         <strong>Orders</strong>
