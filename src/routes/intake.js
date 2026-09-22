@@ -2,19 +2,57 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const db = require('../db');
-const { nextSku, DEFAULT_PREFIX } = require('../lib/nextSku');
+const { nextSku, maxSkuNumber, skuFromNumber, normalizePrefix, DEFAULT_PREFIX } = require('../lib/nextSku');
 const storage = require('../lib/storage');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+const MAX_PHOTOS = 30;
 
 router.get('/intake', (req, res) => {
-  res.render('intake/intake', { error: null, defaultPrefix: DEFAULT_PREFIX });
+  res.render('intake/intake', { error: null, defaultPrefix: DEFAULT_PREFIX, maxPhotos: MAX_PHOTOS });
 });
 
-router.post('/intake', upload.array('photos', 10), async (req, res) => {
+router.post('/intake', upload.array('photos', MAX_PHOTOS), async (req, res) => {
   if (!req.files || req.files.length === 0) {
-    return res.render('intake/intake', { error: 'Take at least one photo before saving.', defaultPrefix: DEFAULT_PREFIX });
+    return res.render('intake/intake', { error: 'Take at least one photo before saving.', defaultPrefix: DEFAULT_PREFIX, maxPhotos: MAX_PHOTOS });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const multiItem = req.body.multi_item === 'on';
+
+  if (multiItem) {
+    // Batch mode: each uploaded photo is a different item -- one SKU, one
+    // inventory row, one photo per file. Numbered in memory off a single
+    // lookup (same pattern as ebaySync.js) instead of round-tripping
+    // nextSku() per photo, since a batch can be 30 files.
+    const prefix = normalizePrefix(req.body.sku_prefix);
+    const existing = await db('inventory').where('sku', 'like', `${prefix}-%`).select('sku');
+    let skuNum = maxSkuNumber(existing, prefix);
+
+    const inventoryRows = [];
+    const photoRows = [];
+    for (const file of req.files) {
+      const sku = skuFromNumber(++skuNum, prefix);
+      const ext = path.extname(file.originalname) || '.jpg';
+      const filename = `1${ext}`;
+      await storage.putObject(`${sku}/${filename}`, file.buffer);
+      photoRows.push({ sku, file_path: `/uploads/${sku}/${filename}` });
+      inventoryRows.push({
+        sku,
+        date_acquired: today,
+        status: 'Intake',
+        item_name: null,
+        purchase_cost: null,
+      });
+    }
+
+    await db.transaction(async (trx) => {
+      await trx('inventory').insert(inventoryRows);
+      await trx('intake_photos').insert(photoRows);
+    });
+
+    return res.redirect('/intake/queue');
   }
 
   const sku = await nextSku(db, req.body.sku_prefix);
@@ -27,7 +65,6 @@ router.post('/intake', upload.array('photos', 10), async (req, res) => {
     photoRows.push({ sku, file_path: `/uploads/${sku}/${filename}` });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
   const itemName = req.body.item_name?.trim() || null;
   const purchaseCost = req.body.purchase_cost ? Number(req.body.purchase_cost) : null;
 

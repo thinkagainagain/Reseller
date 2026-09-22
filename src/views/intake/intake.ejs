@@ -17,21 +17,47 @@
     <% } %>
 
     <form method="POST" action="/intake" enctype="multipart/form-data">
-      <label for="photos">Photo(s) of the item</label>
+      <label style="display:flex;align-items:center;gap:0.5rem;">
+        <input type="checkbox" id="multi_item" name="multi_item" style="width:auto;">
+        Each photo is a different item
+      </label>
+      <div class="stat-sub" id="multi_item_hint" style="margin:0.25rem 0 0.75rem;">
+        Off: all photos below get filed together as one item. On: every photo becomes its own item with its own SKU -- e.g. line up 30 CDs and take one photo each.
+      </div>
+
+      <label for="photos" id="photos_label">Photo(s) of the item</label>
       <input type="file" id="photos" name="photos" accept="image/*" multiple required>
+      <div class="stat-sub" style="margin:-0.75rem 0 0.5rem;">Up to <%= maxPhotos %> photos per batch.</div>
 
       <label for="sku_prefix">SKU prefix</label>
       <input type="text" id="sku_prefix" name="sku_prefix" value="<%= defaultPrefix %>" maxlength="10" style="text-transform:uppercase;">
       <div class="stat-sub" style="margin:-0.75rem 0 0.5rem;">Numbers count up separately per prefix. Change this when listing on someone else's behalf -- leave it as <%= defaultPrefix %> otherwise.</div>
 
-      <label for="item_name">Title (optional)</label>
-      <input type="text" id="item_name" name="item_name" placeholder="e.g. Vintage Pyrex mixing bowl">
+      <div id="single_item_fields">
+        <label for="item_name">Title (optional)</label>
+        <input type="text" id="item_name" name="item_name" placeholder="e.g. Vintage Pyrex mixing bowl">
 
-      <label for="purchase_cost">Cost of goods (optional)</label>
-      <input type="number" id="purchase_cost" name="purchase_cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        <label for="purchase_cost">Cost of goods (optional)</label>
+        <input type="number" id="purchase_cost" name="purchase_cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+      </div>
 
       <button type="submit">Save to Intake</button>
     </form>
   </main>
+
+  <script>
+    const multiCheckbox = document.getElementById('multi_item');
+    const singleItemFields = document.getElementById('single_item_fields');
+    const photosLabel = document.getElementById('photos_label');
+
+    function syncMultiItemMode() {
+      const isMulti = multiCheckbox.checked;
+      singleItemFields.style.display = isMulti ? 'none' : '';
+      photosLabel.textContent = isMulti ? 'Photos (one per item)' : 'Photo(s) of the item';
+    }
+
+    multiCheckbox.addEventListener('change', syncMultiItemMode);
+    syncMultiItemMode();
+  </script>
 </body>
 </html>

@@ -22,6 +22,26 @@ const inventoryCheckRoutes = require('./routes/inventoryCheck');
 const storage = require('./lib/storage');
 const { startScheduledSync } = require('./services/scheduledSync');
 
+// Without these, ANY uncaught async error anywhere in the process -- not just
+// inside the scheduled eBay sync's own try/catch -- takes down the entire
+// server, dropping every in-flight request until something restarts it.
+// Confirmed live: a TLS handshake failure talking to eBay surfaced as an
+// unhandled rejection separate from the sync's own awaited/caught fetch()
+// call and killed the whole app. Node's own advice is to let
+// uncaughtException crash and restart (the process may be in a state its
+// own code doesn't expect), but for this app the failures we actually see
+// here are transient network/fetch errors, not corrupted in-process state --
+// staying up and logging is strictly better than an outage for every
+// concurrent user of the dashboard/orders/intake pages over one flaky
+// eBay call. If a genuinely unrecoverable crash shows up here, it still
+// prints the full error below.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandled rejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaught exception]', err);
+});
+
 const app = express();
 
 app.set('view engine', 'ejs');
