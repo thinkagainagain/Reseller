@@ -62,6 +62,43 @@ function pickSkuForNewListing(rawListingSku, skusUsedThisBatch, generateNext) {
   return { sku, usingOwnSku: false, isDuplicateLabel: ownSku };
 }
 
+// A multi-variation listing (one listing, e.g. 4 colors x 3 each) becomes
+// one entry per variation, each matched to its own SKU/inventory row, so the
+// per-listing logic below doesn't need to know which kind it's looking at.
+// The listing-level SKU (Custom Label) is ignored for these -- each
+// variation's own SKU field is what identifies it.
+function flattenListing(listing) {
+  if (!listing.variations || listing.variations.length === 0) {
+    return [{ ...listing, isVariation: false, variantLabel: null }];
+  }
+  return listing.variations.map((variation) => ({
+    ...listing,
+    sku: variation.sku,
+    price: variation.price || listing.price,
+    quantityAvailable: variation.quantityAvailable,
+    isVariation: true,
+    variantLabel: variation.label,
+  }));
+}
+
+// Joins eBay's variation aspects ([{ name: 'Color', value: 'Red' }]) the same
+// way ebayTradingApi's variationLabel does, so a sale on a variation with no
+// SKU can still find the row sync created for it.
+function variationLabelFromAspects(aspects) {
+  return (aspects || []).map((aspect) => String(aspect.value ?? '').trim()).filter(Boolean).join(' / ') || null;
+}
+
+// What an inventory row's status should become once an eBay order for it
+// turns up. A one-of-a-kind item is simply Sold. A multi-unit row stays
+// Active while eBay still reports units left to sell (syncActiveListings,
+// run just before this in a full sync, has already copied eBay's remaining
+// count into `quantity` and moved a sold-out row to Ended), so only the
+// last unit's sale marks it Sold.
+function statusAfterSale(row) {
+  if (row.multi_unit && row.status === 'Active' && Number(row.quantity) > 0) return row.status;
+  return 'Sold';
+}
+
 async function syncActiveListings() {
   const accessToken = await getAccessToken(['https://api.ebay.com/oauth/api_scope/sell.inventory.readonly']);
   const listings = await getActiveListings(accessToken);
@@ -72,10 +109,23 @@ async function syncActiveListings() {
   // that per-item chatter, not the eBay API call itself, was what outran
   // Render's request timeout during a real production sync.
   const allInventory = await db('inventory').select(
-    'sku', 'status', 'ebay_item_id', 'bin_location', 'first_listed_date', 'date_listed', 'ebay_primary_photo_url'
+    'sku', 'status', 'ebay_item_id', 'bin_location', 'first_listed_date', 'date_listed', 'ebay_primary_photo_url',
+    'quantity', 'multi_unit', 'variant_label'
   );
   const bySku = new Map(allInventory.map((row) => [row.sku, row]));
-  const byItemId = new Map(allInventory.filter((row) => row.ebay_item_id).map((row) => [row.ebay_item_id, row]));
+  // Variations of one listing all share its Item ID, so an Item ID alone is
+  // only a safe fallback match when exactly one row carries it; variations
+  // fall back to Item ID + variant label instead.
+  const rowsPerItemId = new Map();
+  for (const row of allInventory) {
+    if (row.ebay_item_id) rowsPerItemId.set(row.ebay_item_id, (rowsPerItemId.get(row.ebay_item_id) || 0) + 1);
+  }
+  const byItemId = new Map(
+    allInventory.filter((row) => row.ebay_item_id && rowsPerItemId.get(row.ebay_item_id) === 1).map((row) => [row.ebay_item_id, row])
+  );
+  const byItemIdAndLabel = new Map(
+    allInventory.filter((row) => row.ebay_item_id && row.variant_label).map((row) => [`${row.ebay_item_id}|${row.variant_label}`, row])
+  );
   let nextSkuNum = maxSkuNumber(allInventory);
 
   const updates = [];
@@ -93,16 +143,30 @@ async function syncActiveListings() {
   let duplicateCustomLabels = 0;
   let endedMissing = 0;
 
-  for (const listing of listings) {
+  let variationsSynced = 0;
+
+  for (const listing of listings.flatMap(flattenListing)) {
+    if (listing.isVariation) variationsSynced += 1;
+
     // Match by our own SKU first (set via eBay's "Custom Label" field when
-    // you manually list an item you already ran through Intake), so an item
-    // already tracked as Waiting to List gets updated in place instead of
-    // spawning a duplicate row. Falls back to eBay's Item ID for listings
-    // we've already synced before.
+    // you manually list an item you already ran through Intake, or each
+    // variation's own SKU field), so an item already tracked as Waiting to
+    // List gets updated in place instead of spawning a duplicate row. Falls
+    // back to eBay's Item ID (plus variant label, for variations) for
+    // listings we've already synced before.
     let existing = listing.sku ? bySku.get(listing.sku) : undefined;
     const matchedViaSku = Boolean(existing);
     if (matchedViaSku) matchedBySku += 1;
-    if (!existing) existing = byItemId.get(listing.itemId);
+    if (!existing) {
+      existing = listing.isVariation
+        ? byItemIdAndLabel.get(`${listing.itemId}|${listing.variantLabel}`)
+        : byItemId.get(listing.itemId);
+    }
+
+    // Anything that can hold more than one unit tracks eBay's remaining
+    // count; a normal one-of-a-kind listing leaves `quantity` alone.
+    const isMultiUnit = listing.isVariation || listing.quantityAvailable > 1 || Boolean(existing?.multi_unit);
+    const unitFields = isMultiUnit ? { quantity: listing.quantityAvailable, multi_unit: true } : {};
 
     if (existing) {
       // If this item was only found via Item ID (not SKU), eBay's Custom
@@ -132,7 +196,13 @@ async function syncActiveListings() {
           first_listed_date: existing.first_listed_date || toDateOnly(listing.startTime),
           date_listed: toDateOnly(listing.startTime) || existing.date_listed,
           bin_location: shouldBackfillBinLocation ? listing.sku : existing.bin_location,
-          ebay_primary_photo_url: listing.galleryUrl || existing.ebay_primary_photo_url,
+          // The gallery photo is the whole listing's, not this variation's --
+          // don't let it replace a variation's own photo once it has one.
+          ebay_primary_photo_url: listing.isVariation
+            ? existing.ebay_primary_photo_url || listing.galleryUrl
+            : listing.galleryUrl || existing.ebay_primary_photo_url,
+          ...unitFields,
+          ...(listing.isVariation && !existing.variant_label ? { variant_label: listing.variantLabel } : {}),
           updated_at: db.fn.now(),
         },
       });
@@ -163,12 +233,14 @@ async function syncActiveListings() {
         item_name: listing.title,
         list_price: listing.price,
         ebay_item_id: listing.itemId,
-        status: 'Active',
+        status: isMultiUnit ? resolveActiveListingStatus('Active', listing.quantityAvailable) : 'Active',
         first_listed_date: toDateOnly(listing.startTime),
         date_listed: toDateOnly(listing.startTime),
         date_acquired: null,
         ebay_primary_photo_url: listing.galleryUrl || null,
         bin_location: usingOwnSku ? null : listing.sku || null,
+        variant_label: listing.variantLabel,
+        ...unitFields,
       });
       if (!usingOwnSku && listing.sku) binLocationBackfilled += 1;
     }
@@ -211,6 +283,7 @@ async function syncActiveListings() {
     endedOutOfStock,
     duplicateCustomLabels,
     endedMissing,
+    variationsSynced,
   };
 }
 
@@ -291,11 +364,16 @@ async function syncSoldOrders(lookbackDays = ORDER_LOOKBACK_DAYS) {
 
       const lineItemSku = lineItem.sku ? String(lineItem.sku).trim() : null;
 
+      const variantLabel = variationLabelFromAspects(lineItem.variationAspects);
+
       let inventoryRow = null;
       if (lineItemSku) {
         inventoryRow = await db('inventory').where({ sku: lineItemSku }).first();
       }
-      if (!inventoryRow) {
+      if (!inventoryRow && variantLabel) {
+        inventoryRow = await db('inventory').where({ ebay_item_id: itemId, variant_label: variantLabel }).first();
+      }
+      if (!inventoryRow && !variantLabel) {
         inventoryRow = await db('inventory').where({ ebay_item_id: itemId }).first();
       }
 
@@ -307,24 +385,43 @@ async function syncSoldOrders(lookbackDays = ORDER_LOOKBACK_DAYS) {
           ebay_item_id: itemId,
           status: 'Sold',
           date_acquired: null,
+          variant_label: variantLabel,
+          multi_unit: Boolean(variantLabel),
         });
         inventoryRow = { sku };
         backfilledInventory += 1;
-      } else if (inventoryRow.status !== 'Sold' || inventoryRow.ebay_item_id !== itemId) {
-        await db('inventory').where({ sku: inventoryRow.sku }).update({
-          status: 'Sold',
-          ebay_item_id: itemId,
-          updated_at: db.fn.now(),
-        });
+      } else {
+        const newStatus = statusAfterSale(inventoryRow);
+        if (newStatus !== inventoryRow.status || inventoryRow.ebay_item_id !== itemId) {
+          await db('inventory').where({ sku: inventoryRow.sku }).update({
+            status: newStatus,
+            ebay_item_id: itemId,
+            updated_at: db.fn.now(),
+          });
+        }
       }
 
       const salePrice = Number(lineItem.total?.value ?? 0);
       const shippingCharged = Number(lineItem.deliveryCost?.shippingCost?.value ?? 0);
       const saleDate = toDateOnly(order.creationDate);
+      const lineItemId = lineItem.lineItemId ? String(lineItem.lineItemId) : null;
+      const unitsSold = Number.parseInt(lineItem.quantity, 10) || 1;
 
-      const existingSale = await db('sales_log')
-        .where({ sku: inventoryRow.sku, platform: 'eBay', sale_date: saleDate })
-        .first();
+      // A multi-unit SKU can sell more than once on the same day, so each
+      // eBay line item is its own sale. Falls back to the old SKU + date
+      // match only for rows logged before line item IDs were recorded (or
+      // logged by hand via Log Sale), never one already claimed by a
+      // different line item.
+      let existingSale = lineItemId
+        ? await db('sales_log').where({ ebay_line_item_id: lineItemId }).first()
+        : null;
+      if (!existingSale) {
+        existingSale = await db('sales_log')
+          .where({ sku: inventoryRow.sku, platform: 'eBay', sale_date: saleDate })
+          .whereNull('ebay_line_item_id')
+          .where((qb) => qb.whereNull('order_id').orWhere('order_id', orderId))
+          .first();
+      }
 
       let saleRowId;
       if (existingSale) {
@@ -333,6 +430,8 @@ async function syncSoldOrders(lookbackDays = ORDER_LOOKBACK_DAYS) {
           shipping_charged: shippingCharged,
           order_id: orderId,
           ebay_actual_fee: ebayActualFee,
+          ebay_line_item_id: lineItemId,
+          quantity: unitsSold,
           updated_at: db.fn.now(),
         });
         saleRowId = existingSale.id;
@@ -347,6 +446,8 @@ async function syncSoldOrders(lookbackDays = ORDER_LOOKBACK_DAYS) {
             shipping_charged: shippingCharged,
             order_id: orderId,
             ebay_actual_fee: ebayActualFee,
+            ebay_line_item_id: lineItemId,
+            quantity: unitsSold,
           })
           .returning('id');
         saleRowId = inserted?.id ?? inserted;
@@ -387,4 +488,7 @@ module.exports = {
   looksLikeOwnSku,
   resolveActiveListingStatus,
   pickSkuForNewListing,
+  flattenListing,
+  variationLabelFromAspects,
+  statusAfterSale,
 };

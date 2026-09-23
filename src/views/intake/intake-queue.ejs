@@ -24,11 +24,14 @@
             <img src="<%= firstPhotoBySku[item.sku] %>" alt="<%= item.sku %>">
           <% } %>
           <div class="sku"><%= item.sku %></div>
+          <% if (item.multi_unit) { %>
+            <div><strong><%= item.variant_label || 'Variation' %></strong> &times; <%= item.quantity %></div>
+          <% } %>
           <% if (item.item_name) { %>
             <div><%= item.item_name %></div>
           <% } %>
           <% if (item.purchase_cost) { %>
-            <div>Cost: $<%= Number(item.purchase_cost).toFixed(2) %></div>
+            <div>Cost: $<%= Number(item.purchase_cost).toFixed(2) %><%= item.multi_unit ? ' / unit' : '' %></div>
           <% } %>
           <div>Acquired: <%= item.date_acquired %></div>
         </a>

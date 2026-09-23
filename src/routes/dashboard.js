@@ -37,11 +37,14 @@ function rollUp(rows, keyFn) {
   }));
 }
 
+// Cost is per unit, so a multi-unit SKU ties up cost x units still on hand.
+const TIED_UP_SELECT = db.raw('COUNT(*) as count, SUM(purchase_cost * quantity) as "tiedUp"');
+
 router.get('/dashboard', async (req, res) => {
   const [active, waiting, deathPile, sold, ended, soldElsewhere] = await Promise.all([
     db('inventory').where({ status: 'Active' }).count('* as count').first(),
-    db('inventory').where({ status: 'Intake' }).count('* as count').sum('purchase_cost as tiedUp').first(),
-    db('inventory').where({ status: 'Death Pile' }).count('* as count').sum('purchase_cost as tiedUp').first(),
+    db('inventory').where({ status: 'Intake' }).select(TIED_UP_SELECT).first(),
+    db('inventory').where({ status: 'Death Pile' }).select(TIED_UP_SELECT).first(),
     db('inventory').where({ status: 'Sold' }).count('* as count').first(),
     db('inventory').where({ status: 'Ended' }).count('* as count').first(),
     // "Sold Elsewhere" -- items sold off-eBay (Poshmark, Depop, Mercari, etc.)
@@ -54,7 +57,7 @@ router.get('/dashboard', async (req, res) => {
   const saleSelect = [
     'sales_log.sku', 'inventory.item_name', 'sales_log.platform', 'sales_log.sale_date',
     'sales_log.sale_price', 'sales_log.shipping_charged', 'sales_log.shipping_cost',
-    'sales_log.other_fees', 'sales_log.ebay_actual_fee', 'inventory.purchase_cost',
+    'sales_log.other_fees', 'sales_log.ebay_actual_fee', 'sales_log.quantity', 'inventory.purchase_cost',
     'platform_fees.fee_percent', 'platform_fees.flat_fee',
   ];
 

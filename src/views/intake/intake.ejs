@@ -25,9 +25,21 @@
         Off: all photos below get filed together as one item. On: every photo becomes its own item with its own SKU -- e.g. line up 30 CDs and take one photo each.
       </div>
 
+      <div id="multi_unit_toggle" style="display:none;">
+        <label style="display:flex;align-items:center;gap:0.5rem;">
+          <input type="checkbox" id="multi_unit" name="multi_unit" style="width:auto;">
+          More than one unit per item (variations)
+        </label>
+        <div class="stat-sub" style="margin:0.25rem 0 0.75rem;">
+          e.g. 3 each of 4 colors: take one photo per color, then enter 3 as the quantity for each. Type each SKU into its variation's SKU field in eBay -- sync counts down from eBay's quantity as they sell.
+        </div>
+      </div>
+
       <label for="photos" id="photos_label">Photo(s) of the item</label>
       <input type="file" id="photos" name="photos" accept="image/*" multiple required>
       <div class="stat-sub" style="margin:-0.75rem 0 0.5rem;">Up to <%= maxPhotos %> photos per batch.</div>
+
+      <div id="unit_rows"></div>
 
       <label for="sku_prefix">SKU prefix</label>
       <input type="text" id="sku_prefix" name="sku_prefix" value="<%= defaultPrefix %>" maxlength="10" style="text-transform:uppercase;">
@@ -49,14 +61,59 @@
     const multiCheckbox = document.getElementById('multi_item');
     const singleItemFields = document.getElementById('single_item_fields');
     const photosLabel = document.getElementById('photos_label');
+    const multiUnitToggle = document.getElementById('multi_unit_toggle');
+    const multiUnitCheckbox = document.getElementById('multi_unit');
+    const photosInput = document.getElementById('photos');
+    const unitRows = document.getElementById('unit_rows');
+
+    // One Qty / Label / Cost row per selected photo, in the same order the
+    // files get uploaded -- the server pairs them up by position.
+    function renderUnitRows() {
+      unitRows.innerHTML = '';
+      if (!multiCheckbox.checked || !multiUnitCheckbox.checked) return;
+
+      Array.from(photosInput.files).forEach((file, index) => {
+        const row = document.createElement('div');
+        row.className = 'card';
+        row.style.cssText = 'display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;';
+
+        const thumb = document.createElement('img');
+        thumb.src = URL.createObjectURL(file);
+        thumb.alt = `Photo ${index + 1}`;
+        thumb.style.cssText = 'width:64px;height:64px;object-fit:cover;border-radius:4px;';
+        row.appendChild(thumb);
+
+        const fields = document.createElement('div');
+        fields.style.cssText = 'display:flex;gap:0.5rem;flex:1;min-width:0;flex-wrap:wrap;';
+        fields.innerHTML = `
+          <label style="flex:0 0 4.5rem;margin:0;">Qty
+            <input type="number" name="unit_quantity" min="1" max="999" step="1" value="1" inputmode="numeric" required>
+          </label>
+          <label style="flex:1 1 7rem;margin:0;">Label
+            <input type="text" name="unit_label" maxlength="60" placeholder="e.g. Red">
+          </label>
+          <label style="flex:0 0 6rem;margin:0;">Cost / unit
+            <input type="number" name="unit_cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+          </label>`;
+        row.appendChild(fields);
+        unitRows.appendChild(row);
+      });
+    }
 
     function syncMultiItemMode() {
       const isMulti = multiCheckbox.checked;
       singleItemFields.style.display = isMulti ? 'none' : '';
-      photosLabel.textContent = isMulti ? 'Photos (one per item)' : 'Photo(s) of the item';
+      multiUnitToggle.style.display = isMulti ? '' : 'none';
+      if (!isMulti) multiUnitCheckbox.checked = false;
+      photosLabel.textContent = isMulti
+        ? (multiUnitCheckbox.checked ? 'Photos (one per variation)' : 'Photos (one per item)')
+        : 'Photo(s) of the item';
+      renderUnitRows();
     }
 
     multiCheckbox.addEventListener('change', syncMultiItemMode);
+    multiUnitCheckbox.addEventListener('change', syncMultiItemMode);
+    photosInput.addEventListener('change', renderUnitRows);
     syncMultiItemMode();
   </script>
 </body>

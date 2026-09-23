@@ -3,7 +3,7 @@ const db = require('../db');
 const { STATUSES } = require('../lib/constants');
 const {
   ON_HAND_STATUSES, NO_BIN, ORDER_SQL,
-  parseFilters, applyFilters, describeFilters, filenameFor, buildWorkbookBuffer,
+  parseFilters, applyFilters, describeFilters, filenameFor, buildWorkbookBuffer, itemTitle,
 } = require('../lib/inventoryCheck');
 
 const router = express.Router();
@@ -26,7 +26,7 @@ router.get('/inventory/check', async (req, res) => {
   const [{ count }, items, bins, categories] = await Promise.all([
     applyFilters(db('inventory'), filters).count('* as count').first(),
     applyFilters(db('inventory'), filters)
-      .select('sku', 'item_name', 'bin_location', 'status')
+      .select('sku', 'item_name', 'variant_label', 'quantity', 'bin_location', 'status')
       .orderByRaw(ORDER_SQL)
       .limit(PREVIEW_LIMIT),
     distinctValues('bin_location'),
@@ -41,14 +41,14 @@ router.get('/inventory/check', async (req, res) => {
 
   res.render('inventory/inventory-check', {
     filters, items, total: Number(count), previewLimit: PREVIEW_LIMIT,
-    bins, categories, statuses: STATUSES, noBin: NO_BIN, exportQuery: exportParams.toString(),
+    bins, categories, itemTitle, statuses: STATUSES, noBin: NO_BIN, exportQuery: exportParams.toString(),
   });
 });
 
 router.get('/inventory/check/export.xlsx', async (req, res) => {
   const filters = parseFilters(req.query);
   const rows = await applyFilters(db('inventory'), filters)
-    .select('sku', 'item_name', 'bin_location')
+    .select('sku', 'item_name', 'variant_label', 'quantity', 'bin_location')
     .orderByRaw(ORDER_SQL);
 
   const buffer = await buildWorkbookBuffer(rows, describeFilters(filters, rows.length));

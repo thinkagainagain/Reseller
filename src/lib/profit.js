@@ -3,7 +3,9 @@ function computeProfit(sale) {
   const shippingCharged = Number(sale.shipping_charged || 0);
   const shippingCost = Number(sale.shipping_cost || 0);
   const otherFees = Number(sale.other_fees || 0);
-  const purchaseCost = Number(sale.purchase_cost || 0);
+  // purchase_cost is per unit; one eBay line item can be several units of a
+  // multi-unit SKU.
+  const purchaseCost = Number(sale.purchase_cost || 0) * Number(sale.quantity || 1);
   const feePercent = Number(sale.fee_percent || 0);
   const flatFee = Number(sale.flat_fee || 0);
 

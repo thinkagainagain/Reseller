@@ -52,3 +52,8 @@ test('computeProfit does not divide by zero when revenue is zero', () => {
   assert.equal(result.revenue, 0);
   assert.equal(result.marginPct, 0);
 });
+
+test('computeProfit charges per-unit cost once per unit sold', () => {
+  const { profit } = computeProfit({ sale_price: 30, purchase_cost: 4, quantity: 2, fee_percent: 0, flat_fee: 0 });
+  assert.equal(profit, 22);
+});

@@ -4,6 +4,7 @@ const ExcelJS = require('exceljs');
 const {
   parseFilters, escapeLike, describeFilters, filenameFor, buildWorkbookBuffer, NO_BIN,
 } = require('../../src/lib/inventoryCheck');
+const { parseBinInput } = require('../../src/lib/binImport');
 
 test('parseFilters trims input and defaults status to on-hand', () => {
   const f = parseFilters({ q: '  blue mug ', bin: 'Kitchen1' });
@@ -34,7 +35,7 @@ test('filenameFor builds a safe filename from the filters', () => {
   );
 });
 
-test('buildWorkbookBuffer keeps the SKU/Title/Location/Found? header and one row per item', async () => {
+test('buildWorkbookBuffer keeps the SKU/Title/Qty/Location/Found? header and one row per item', async () => {
   const rows = [
     { sku: 'RT-0001', item_name: 'Blue "Mug" & Saucer', bin_location: 'Kitchen1' },
     { sku: 'RT-0002', item_name: null, bin_location: null },
@@ -43,10 +44,28 @@ test('buildWorkbookBuffer keeps the SKU/Title/Location/Found? header and one row
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const sheet = workbook.worksheets[0];
-  assert.deepEqual(sheet.getRow(1).values.slice(1), ['SKU', 'Title', 'Location', 'Found?']);
+  assert.deepEqual(sheet.getRow(1).values.slice(1), ['SKU', 'Title', 'Qty', 'Location', 'Found?']);
   assert.equal(sheet.getRow(2).getCell(2).value, 'Blue "Mug" & Saucer');
-  assert.equal(sheet.getRow(3).getCell(3).value, '');
+  assert.equal(sheet.getRow(2).getCell(3).value, 1);
+  assert.equal(sheet.getRow(3).getCell(4).value, '');
   assert.equal(sheet.rowCount, 3);
+});
+
+test('buildWorkbookBuffer shows a multi-unit SKU with its label and remaining count', async () => {
+  const rows = [{ sku: 'RT-0010', item_name: 'Pyrex bowl', variant_label: 'Red', quantity: 3, bin_location: 'A1' }];
+  const buffer = await buildWorkbookBuffer(rows, 'x');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const row = workbook.worksheets[0].getRow(2);
+  assert.equal(row.getCell(2).value, 'Pyrex bowl (Red)');
+  assert.equal(row.getCell(3).value, 3);
+});
+
+test('exported sheet still pastes back into Import Bin Locations', () => {
+  const pasted = 'SKU\tTitle\tQty\tLocation\tFound?\nRT-0010\tPyrex bowl (Red)\t3\tA1\t';
+  const { entries, error } = parseBinInput(pasted);
+  assert.equal(error, null);
+  assert.deepEqual(entries.map((e) => [e.sku, e.location]), [['RT-0010', 'A1']]);
 });
 
 test('buildWorkbookBuffer stores a formula-looking title as text, not a formula', async () => {
