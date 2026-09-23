@@ -118,3 +118,32 @@ test('statusAfterSale marks a multi-unit SKU Sold once its last unit is gone', (
   assert.equal(statusAfterSale({ status: 'Active', quantity: 0, multi_unit: true }), 'Sold');
   assert.equal(statusAfterSale({ status: 'Ended', quantity: 0, multi_unit: true }), 'Sold');
 });
+
+const { ebaySuffixedSkuBase } = require('../../src/services/ebaySync');
+
+test('ebaySuffixedSkuBase strips eBay\'s "_Bl" suffix when it matches the variation label', () => {
+  assert.equal(ebaySuffixedSkuBase('RT-1642_Bl', 'Blue'), 'RT-1642');
+  assert.equal(ebaySuffixedSkuBase('RT-1642_Bl', 'Red'), null);
+  assert.equal(ebaySuffixedSkuBase('RT-1642', 'Blue'), null);
+  assert.equal(ebaySuffixedSkuBase('Shelf3_Bl', 'Blue'), null);
+});
+
+test('flattenListing maps eBay-suffixed variation SKUs back to the Intake SKUs', () => {
+  const entries = flattenListing({
+    itemId: '9', price: 10, variations: [
+      { sku: 'RT-1642_Bl', label: 'Blue', quantityAvailable: 3 },
+      { sku: 'RT-1643_Re', label: 'Red', quantityAvailable: 3 },
+    ],
+  });
+  assert.deepEqual(entries.map((e) => e.fallbackSku), ['RT-1642', 'RT-1643']);
+});
+
+test('flattenListing refuses to guess when two variations lead back to the same SKU', () => {
+  const entries = flattenListing({
+    itemId: '9', price: 10, variations: [
+      { sku: 'RT-1642_Bl', label: 'Blue', quantityAvailable: 3 },
+      { sku: 'RT-1642_Re', label: 'Red', quantityAvailable: 3 },
+    ],
+  });
+  assert.deepEqual(entries.map((e) => e.fallbackSku), [null, null]);
+});
