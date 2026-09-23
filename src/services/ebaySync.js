@@ -69,16 +69,47 @@ function pickSkuForNewListing(rawListingSku, skusUsedThisBatch, generateNext) {
 // variation's own SKU field is what identifies it.
 function flattenListing(listing) {
   if (!listing.variations || listing.variations.length === 0) {
-    return [{ ...listing, isVariation: false, variantLabel: null }];
+    return [{ ...listing, isVariation: false, variantLabel: null, fallbackSku: null }];
   }
-  return listing.variations.map((variation) => ({
-    ...listing,
-    sku: variation.sku,
-    price: variation.price || listing.price,
-    quantityAvailable: variation.quantityAvailable,
-    isVariation: true,
-    variantLabel: variation.label,
-  }));
+
+  // eBay's variation editor rewrites a typed-in SKU like "RT-1642" into
+  // "RT-1642_Bl" (underscore + first letters of the variation's value),
+  // even with the listing-level SKU blank -- confirmed on a real draft. The
+  // part before the underscore is the SKU from Intake. Only trusted when
+  // the suffix really is the start of this variation's own label and no
+  // other variation in the listing leads back to the same SKU, so a sale
+  // can never land on the wrong color.
+  const bases = listing.variations.map((variation) => ebaySuffixedSkuBase(variation.sku, variation.label));
+  const claimed = new Set(listing.variations.map((variation) => variation.sku).filter(Boolean));
+  const baseCounts = new Map();
+  for (const base of bases) {
+    if (base) baseCounts.set(base, (baseCounts.get(base) || 0) + 1);
+  }
+
+  return listing.variations.map((variation, index) => {
+    const base = bases[index];
+    return {
+      ...listing,
+      sku: variation.sku,
+      fallbackSku: base && baseCounts.get(base) === 1 && !claimed.has(base) ? base : null,
+      price: variation.price || listing.price,
+      quantityAvailable: variation.quantityAvailable,
+      isVariation: true,
+      variantLabel: variation.label,
+    };
+  });
+}
+
+// "RT-1642_Bl" -> "RT-1642" when the base looks like one of our SKUs and,
+// if a label is given, the suffix matches its start ("Bl" of "Blue").
+// Anything else -> null.
+function ebaySuffixedSkuBase(sku, label) {
+  const match = /^(.+)_([^_]+)$/.exec(sku || '');
+  if (!match) return null;
+  const [, base, suffix] = match;
+  if (!looksLikeOwnSku(base)) return null;
+  if (label !== undefined && !String(label || '').toLowerCase().startsWith(suffix.toLowerCase())) return null;
+  return base;
 }
 
 // Joins eBay's variation aspects ([{ name: 'Color', value: 'Red' }]) the same
@@ -155,6 +186,7 @@ async function syncActiveListings() {
     // back to eBay's Item ID (plus variant label, for variations) for
     // listings we've already synced before.
     let existing = listing.sku ? bySku.get(listing.sku) : undefined;
+    if (!existing && listing.fallbackSku) existing = bySku.get(listing.fallbackSku);
     const matchedViaSku = Boolean(existing);
     if (matchedViaSku) matchedBySku += 1;
     if (!existing) {
@@ -370,6 +402,13 @@ async function syncSoldOrders(lookbackDays = ORDER_LOOKBACK_DAYS) {
       if (lineItemSku) {
         inventoryRow = await db('inventory').where({ sku: lineItemSku }).first();
       }
+      // eBay's "RT-1642_Bl"-style variation SKU (see flattenListing): only
+      // accept the base SKU if listing sync already tied that row to this
+      // same eBay listing.
+      const suffixedBase = !inventoryRow && ebaySuffixedSkuBase(lineItemSku);
+      if (suffixedBase) {
+        inventoryRow = await db('inventory').where({ sku: suffixedBase, ebay_item_id: itemId }).first();
+      }
       if (!inventoryRow && variantLabel) {
         inventoryRow = await db('inventory').where({ ebay_item_id: itemId, variant_label: variantLabel }).first();
       }
@@ -489,6 +528,7 @@ module.exports = {
   resolveActiveListingStatus,
   pickSkuForNewListing,
   flattenListing,
+  ebaySuffixedSkuBase,
   variationLabelFromAspects,
   statusAfterSale,
 };
