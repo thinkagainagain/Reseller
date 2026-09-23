@@ -61,12 +61,13 @@
 
       <div class="table-scroll">
         <table>
-          <thead><tr><th>SKU</th><th>Item</th><th>Location</th><th>Status</th></tr></thead>
+          <thead><tr><th>SKU</th><th>Item</th><th>Qty</th><th>Location</th><th>Status</th></tr></thead>
           <tbody>
             <% items.forEach(function(item) { %>
               <tr>
                 <td><a href="/inventory/<%= item.sku %>/edit"><%= item.sku %></a></td>
-                <td><%= item.item_name || '—' %></td>
+                <td><%= itemTitle(item) || '—' %></td>
+                <td><%= item.quantity ?? 1 %></td>
                 <td><%= item.bin_location || '—' %></td>
                 <td><%= item.status %></td>
               </tr>

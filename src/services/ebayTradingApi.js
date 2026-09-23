@@ -32,6 +32,31 @@ function upsizeGalleryUrl(url) {
   return url.replace(/s-l\d+/, 's-l500');
 }
 
+// "Red" for a single Color variation, "Red / Large" for Color + Size --
+// used as the variant label on rows sync has to create itself.
+function variationLabel(variation) {
+  return asArray(variation.VariationSpecifics?.NameValueList)
+    .flatMap((pair) => asArray(pair.Value))
+    .map((value) => String(value).trim())
+    .filter(Boolean)
+    .join(' / ') || null;
+}
+
+// A multi-variation listing (e.g. one mug in 4 colors) comes back as one
+// Item with a Variations block; each variation carries its own SKU, price
+// and quantity. Variation.Quantity is the total ever listed for that
+// variation, so what's left to sell is Quantity minus QuantitySold.
+function normalizeVariation(variation) {
+  const listed = Number(variation.Quantity ?? 0);
+  const sold = Number(variation.SellingStatus?.QuantitySold ?? 0);
+  return {
+    sku: variation.SKU ? String(variation.SKU).trim() : null,
+    label: variationLabel(variation),
+    price: Number(variation.StartPrice ?? 0),
+    quantityAvailable: Math.max(listed - sold, 0),
+  };
+}
+
 function normalizeItem(item) {
   return {
     itemId: String(item.ItemID),
@@ -41,6 +66,7 @@ function normalizeItem(item) {
     quantityAvailable: Number(item.QuantityAvailable ?? item.Quantity ?? 1),
     startTime: item.ListingDetails?.StartTime,
     galleryUrl: upsizeGalleryUrl(item.PictureDetails?.GalleryURL),
+    variations: asArray(item.Variations?.Variation).map(normalizeVariation),
   };
 }
 
@@ -165,7 +191,7 @@ function buildAddFixedPriceItemRequest(listing) {
     </PrimaryCategory>
     <ConditionID>${listing.conditionId}</ConditionID>
     <StartPrice>${listing.price}</StartPrice>
-    <Quantity>1</Quantity>
+    <Quantity>${Number(listing.quantity) >= 1 ? Math.floor(Number(listing.quantity)) : 1}</Quantity>
     <ScheduleTime>${listing.startTime}</ScheduleTime>
     <SKU>${escapeXml(listing.sku)}</SKU>
     <Country>${listing.shipFromCountry}</Country>
@@ -224,4 +250,4 @@ async function addFixedPriceItem(accessToken, listing) {
   return { ack: response.Ack, itemId: String(response.ItemID), startTime: response.StartTime };
 }
 
-module.exports = { getActiveListings, reviseSku, addFixedPriceItem, buildPictureDetailsXml };
+module.exports = { getActiveListings, reviseSku, addFixedPriceItem, buildPictureDetailsXml, normalizeItem };

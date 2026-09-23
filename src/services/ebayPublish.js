@@ -68,6 +68,7 @@ async function publishToEbay(sku) {
     categoryId: item.ebay_category_id,
     conditionId,
     price: item.list_price,
+    quantity: item.quantity || 1,
     sku: item.sku,
     shipFromCountry,
     shipFromPostalCode,

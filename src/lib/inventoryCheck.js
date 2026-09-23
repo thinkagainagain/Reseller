@@ -74,8 +74,17 @@ function filenameFor(filters, isoDate) {
   return `inventory_check_${isoDate}${slug ? `_${slug}` : ''}.xlsx`;
 }
 
-// Header row stays exactly SKU / Title / Location / Found? so the finished
-// sheet can be pasted straight back into Import Bin Locations. Page setup is
+// "Mug (Red)" -- a variation's label tells same-titled SKUs apart on the shelf.
+function itemTitle(row) {
+  const title = row.item_name || '';
+  if (!row.variant_label) return title;
+  return title ? `${title} (${row.variant_label})` : row.variant_label;
+}
+
+// SKU stays the first column and Location keeps its header name so the
+// finished sheet can be pasted straight back into Import Bin Locations (it
+// finds the Location column by name). Qty is units still on hand -- 1 for a
+// normal item, eBay's remaining count for a multi-unit SKU. Page setup is
 // there for the printout: fit to one page wide, header row repeated on every
 // page, page numbers in the footer.
 async function buildWorkbookBuffer(rows, summary) {
@@ -96,13 +105,14 @@ async function buildWorkbookBuffer(rows, summary) {
 
   sheet.columns = [
     { header: 'SKU', key: 'sku', width: 11 },
-    { header: 'Title', key: 'title', width: 62 },
+    { header: 'Title', key: 'title', width: 54 },
+    { header: 'Qty', key: 'qty', width: 6 },
     { header: 'Location', key: 'location', width: 22 },
     { header: 'Found?', key: 'found', width: 10 },
   ];
 
   for (const row of rows) {
-    sheet.addRow({ sku: row.sku, title: row.item_name || '', location: row.bin_location || '', found: '' });
+    sheet.addRow({ sku: row.sku, title: itemTitle(row), qty: Number(row.quantity ?? 1), location: row.bin_location || '', found: '' });
   }
 
   const thin = { style: 'thin', color: { argb: 'FF999999' } };
@@ -116,12 +126,12 @@ async function buildWorkbookBuffer(rows, summary) {
       }
     });
   });
-  if (rows.length > 0) sheet.autoFilter = `A1:D${rows.length + 1}`;
+  if (rows.length > 0) sheet.autoFilter = `A1:E${rows.length + 1}`;
 
   return workbook.xlsx.writeBuffer();
 }
 
 module.exports = {
   ON_HAND_STATUSES, NO_BIN, ORDER_SQL,
-  parseFilters, escapeLike, applyFilters, describeFilters, filenameFor, buildWorkbookBuffer,
+  parseFilters, escapeLike, applyFilters, describeFilters, filenameFor, buildWorkbookBuffer, itemTitle,
 };

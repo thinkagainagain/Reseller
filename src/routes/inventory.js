@@ -39,7 +39,7 @@ router.get('/inventory/death-pile', async (req, res) => {
     .where({ status: 'Death Pile' })
     .orderBy('date_acquired', 'asc');
 
-  const totalTiedUp = items.reduce((sum, item) => sum + Number(item.purchase_cost || 0), 0);
+  const totalTiedUp = items.reduce((sum, item) => sum + Number(item.purchase_cost || 0) * Number(item.quantity || 1), 0);
 
   res.render('inventory/death-pile', { items, totalTiedUp });
 });

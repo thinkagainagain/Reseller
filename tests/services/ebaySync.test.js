@@ -77,3 +77,44 @@ test('pickSkuForNewListing skips a generated number that an earlier own-SKU list
   const result = pickSkuForNewListing('Shelf B3', used, () => sequence[i++]);
   assert.deepEqual(result, { sku: 'RT-0101', usingOwnSku: false, isDuplicateLabel: false });
 });
+
+const { flattenListing, variationLabelFromAspects, statusAfterSale } = require('../../src/services/ebaySync');
+
+test('flattenListing leaves a plain listing as a single entry', () => {
+  const [entry, ...rest] = flattenListing({ itemId: '1', sku: 'RT-0001', price: 10, quantityAvailable: 1, variations: [] });
+  assert.equal(rest.length, 0);
+  assert.equal(entry.isVariation, false);
+  assert.equal(entry.sku, 'RT-0001');
+});
+
+test('flattenListing splits a variation listing into one entry per variation, ignoring the listing-level SKU', () => {
+  const entries = flattenListing({
+    itemId: '9', sku: 'PARENT', title: 'Pyrex bowl', price: 10, quantityAvailable: 5,
+    variations: [
+      { sku: 'RT-0010', label: 'Red', price: 12, quantityAvailable: 3 },
+      { sku: 'RT-0011', label: 'Blue', price: 0, quantityAvailable: 2 },
+    ],
+  });
+  assert.deepEqual(
+    entries.map((e) => [e.itemId, e.sku, e.variantLabel, e.price, e.quantityAvailable, e.isVariation]),
+    [['9', 'RT-0010', 'Red', 12, 3, true], ['9', 'RT-0011', 'Blue', 10, 2, true]]
+  );
+});
+
+test('variationLabelFromAspects matches the Trading API label format', () => {
+  assert.equal(variationLabelFromAspects([{ name: 'Color', value: 'Blue' }, { name: 'Size', value: 'Large' }]), 'Blue / Large');
+  assert.equal(variationLabelFromAspects(undefined), null);
+});
+
+test('statusAfterSale marks a one-of-a-kind item Sold on its sale', () => {
+  assert.equal(statusAfterSale({ status: 'Active', quantity: 1, multi_unit: false }), 'Sold');
+});
+
+test('statusAfterSale keeps a multi-unit SKU Active while eBay still has units left', () => {
+  assert.equal(statusAfterSale({ status: 'Active', quantity: 2, multi_unit: true }), 'Active');
+});
+
+test('statusAfterSale marks a multi-unit SKU Sold once its last unit is gone', () => {
+  assert.equal(statusAfterSale({ status: 'Active', quantity: 0, multi_unit: true }), 'Sold');
+  assert.equal(statusAfterSale({ status: 'Ended', quantity: 0, multi_unit: true }), 'Sold');
+});
