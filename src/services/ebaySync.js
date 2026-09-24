@@ -102,13 +102,16 @@ function flattenListing(listing) {
 
 // "RT-1642_Bl" -> "RT-1642" when the base looks like one of our SKUs and,
 // if a label is given, the suffix matches its start ("Bl" of "Blue").
-// Anything else -> null.
+// When two variations' labels start with the same letters, eBay adds a
+// counter to keep them unique ("RT-1463_Ye", then "RT-1465_Ye2"), so any
+// trailing digits are ignored for the label check. Anything else -> null.
 function ebaySuffixedSkuBase(sku, label) {
   const match = /^(.+)_([^_]+)$/.exec(sku || '');
   if (!match) return null;
   const [, base, suffix] = match;
   if (!looksLikeOwnSku(base)) return null;
-  if (label !== undefined && !String(label || '').toLowerCase().startsWith(suffix.toLowerCase())) return null;
+  const suffixLetters = suffix.replace(/\d+$/, '') || suffix;
+  if (label !== undefined && !String(label || '').toLowerCase().startsWith(suffixLetters.toLowerCase())) return null;
   return base;
 }
 
