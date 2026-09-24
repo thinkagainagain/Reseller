@@ -9,7 +9,9 @@ resuming cleanly.
 **Production is live on Render** at `https://rebooty-ops-production.onrender.com`
 (no custom domain yet — see Phase 8 below), deployed from `main`.
 As of 2026-09-24, `main` and `staging` are in sync and pushed, and everything
-below is live, including multi-unit intake and the variation-SKU matching fixes.
+below is live, including multi-unit intake, the variation-SKU matching fixes, and
+Qty on the Inventory/edit pages. The first two real multi-variation listings are
+syncing correctly (RT-1465 cleanup done).
 
 The auto-sync-every-20-min feature (`scheduledSync.js`), previously held back from
 production with no timeline set, **is now live** — promoted 2026-09-17.
@@ -119,6 +121,18 @@ sent to eBay):
     (tests use the real SKUs, but the 4th variation's label in the tests,
     "Yellow Swirl", is a guess; only its "Ye" start is known). See open item 1 for
     the production cleanup.
+- **Qty + variation label on Inventory and the edit page** (`9c9bc6f`, live via
+  `bddde9d`). Inventory list has a Qty column and shows the label under the title.
+  Edit page has Quantity + Variation label fields; Quantity is editable until a
+  multi-unit SKU is live on eBay (`multi_unit` + `ebay_item_id`), then read-only
+  "(from eBay)" because every sync overwrites it. Setting Quantity above 1 flips
+  `multi_unit` on. Cost of goods is labeled "per unit" for multi-unit rows.
+- **How the user sets variation SKUs on eBay (working process).** eBay's variation
+  SKU box is a bulk tool ("Enter a prefix and we'll generate the rest"). Select
+  **one variation at a time** and enter that variation's own Intake SKU; eBay appends
+  `_Xx`, which sync handles. Entering one prefix with all variations selected gives
+  every variation the same base, and `flattenListing` deliberately refuses to guess
+  (would create duplicate rows). Leave the listing-level SKU field blank.
 
 ## Open items to pick up next
 
@@ -187,6 +201,21 @@ sent to eBay):
    a normal local run writes photos to real cloud storage. To test uploads locally
    without that, launch with `R2_BUCKET= EBAY_CLIENT_ID= node src/server.js` (local disk
    storage, and no eBay auto-sync mutating the dev DB).
+9. **Sync-created SKUs RT-1634 to RT-1641 (optional tidy-up, user's call).** An older
+   multi-variation listing had no SKUs on its variations, so sync created one row per
+   variation. They match by eBay Item ID + variation label and count down normally.
+   Two optional follow-ups, both explained to the user 2026-09-24: (a) fill in cost
+   per unit on each (sync can't know it, so profit treats them as $0 cost); (b) type
+   each SKU into that listing's variations on eBay, one at a time, so a later color
+   rename on eBay can't break the match and spawn a duplicate. No SKU-numbering risk:
+   Intake and sync share one counter (highest number + 1), confirmed with the user.
+10. **Known gaps in multi-unit (not built, mention if relevant).** (a) Manual Log Sale
+    doesn't count a multi-unit SKU down. Fine while eBay is the only sales channel for
+    these, but matters for off-eBay sales. (b) No app-to-eBay quantity push; eBay is
+    the source of truth for counts. If needed later, Trading API
+    `ReviseInventoryStatus` takes SKU + Quantity. (c) Ready to Publish creates a
+    single-SKU listing at the row's quantity. It can't build a multi-variation
+    listing; the user builds those by hand on eBay.
 
 ## Key non-obvious findings worth remembering
 
