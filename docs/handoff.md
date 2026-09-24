@@ -1,15 +1,15 @@
 # Session handoff
 
-Last updated: 2026-09-20. This is a living "pick up here" doc — overwrite it (don't
+Last updated: 2026-09-24. This is a living "pick up here" doc — overwrite it (don't
 accumulate dated copies) whenever a session ends mid-thread on something worth
 resuming cleanly.
 
 ## Where things stand right now
 
 **Production is live on Render** at `https://rebooty-ops-production.onrender.com`
-(no custom domain yet — see Phase 8 below), deployed from `main`. As of 2026-09-20,
-`main` and `staging` are in sync and everything below is live, including Inventory
-Check and the multer/qs/express security update.
+(no custom domain yet — see Phase 8 below), deployed from `main`.
+As of 2026-09-24, `main` and `staging` are in sync and pushed, and everything
+below is live, including multi-unit intake and the variation-SKU matching fixes.
 
 The auto-sync-every-20-min feature (`scheduledSync.js`), previously held back from
 production with no timeline set, **is now live** — promoted 2026-09-17.
@@ -84,9 +84,59 @@ sent to eBay):
   One moderate warning remains on purpose: `uuid` via `exceljs` — not exploitable as
   used, and npm's only fix is a breaking downgrade of exceljs, so leave it.
 
+**Shipped 2026-09-21 to 2026-09-24** (multi-unit intake and sync hardening):
+
+- **Sync no longer takes down the server** (`25701fd`). `server.js` now has
+  process-level `unhandledRejection`/`uncaughtException` handlers that log and stay
+  up (a TLS failure calling eBay was killing the whole Node process). Also fixed: two
+  active eBay listings sharing one Custom Label used to hit the unique `sku`
+  constraint and roll back the *entire* sync batch. `pickSkuForNewListing` now
+  generates a fresh SKU for the second one and logs it.
+- **Multi-item intake** (`d8317ca`): one photo, one item each.
+- **Multi-unit intake** (`a90dce8`, migration `017_add_multi_unit_quantity`). Intake's
+  multi-item mode has a "More than one unit per item" toggle (Qty / Label /
+  Cost-per-unit per photo), so 3 each of 4 colors = 4 SKUs, quantity 3 each, matching
+  an eBay multi-variation listing (one SKU + quantity per variation). Sync reads every
+  variation (`flattenListing` in `ebaySync.js`) and copies eBay's remaining count into
+  `inventory.quantity`. A `multi_unit` row stays Active until its last unit sells
+  (`statusAfterSale`). Sales are keyed by `ebay_line_item_id`, so two same-day sales
+  of one SKU no longer merge. Profit, tied-up totals, Inventory Check (Qty column)
+  and Ready to Publish all account for quantity. Helpers in `src/lib/multiUnit.js`.
+- **eBay variation SKU suffix matching** (`5981dda`, then `e165f99`). Even with the
+  listing-level SKU blank, eBay's variation editor rewrites a typed SKU `RT-1462`
+  into `RT-1462_Bl` (underscore + first letters of the variation value). When two
+  values share their first letters, it adds a counter: `RT-1463_Ye` then
+  `RT-1465_Ye2`. `ebaySuffixedSkuBase()` maps these back to the Intake SKU. It only
+  trusts the base when the suffix (ignoring trailing digits) is the start of that
+  variation's own label and no other variation in the listing leads to the same base.
+  Order sync accepts the base SKU only if listing sync already tied that row to the
+  same eBay Item ID.
+  - The first version (`5981dda`) missed the counter case. On the first real
+    multi-variation listing (Intake SKUs RT-1462 to RT-1465, eBay SKUs `RT-1462_Bl`,
+    `RT-1463_Ye`, `RT-1464_Pi`, `RT-1465_Ye2`), sync treated `RT-1465_Ye2` as a legacy
+    location code: it inserted a **new row RT-1466** with `bin_location = RT-1465_Ye2`
+    and left the real **RT-1465** stranded in Waiting to List. Fixed in `e165f99`
+    (tests use the real SKUs, but the 4th variation's label in the tests,
+    "Yellow Swirl", is a guess; only its "Ye" start is known). See open item 1 for
+    the production cleanup.
+
 ## Open items to pick up next
 
-1. **Watch `/inventory/ended` over the next several syncs.** This is brand
+1. **Finish and verify the RT-1465 / RT-1466 cleanup in production (started
+   2026-09-24).** The fix is pushed to `main`. Remaining steps, in this order:
+   (a) confirm the Render production deploy of `99da463` (or later) is Live;
+   (b) run Sync on `/sync`;
+   (c) confirm **RT-1465** now has the listing's `ebay_item_id`, its `variant_label`
+   (a "Ye..." color), `multi_unit = true`, eBay's remaining quantity, status Active
+   (no longer Waiting to List), and an empty `bin_location`;
+   (d) confirm RT-1462 to RT-1464 still look right;
+   (e) **only then delete RT-1466** from its edit page (`POST /inventory/:sku/delete`).
+   Deleting it earlier is pointless because the 20-min auto-sync recreates it as
+   RT-1467. It also won't clear on its own: the Ended sweep skips any row whose Item
+   ID was seen this sync. The RT-1466 number is burned, so the next Intake SKU is
+   RT-1467. That's fine. If RT-1465 still doesn't match after the sync, get the
+   variation's exact label from eBay and check it against `ebaySuffixedSkuBase`.
+2. **Watch `/inventory/ended` over the next several syncs.** This is brand
    new logic against real production data — worth checking that what lands
    there actually makes sense (real stale/OOS items, not false positives)
    before trusting it unattended. If eBay's `GetMyeBaySelling` ever returns a
@@ -95,11 +145,11 @@ sent to eBay):
    `getActiveListings` in `ebayTradingApi.js`), that would show up as
    real Active items wrongly flagged Ended — watch for that specifically if
    `endedMissing` numbers ever look too high on `/sync`.
-2. **Old Ended items may need the new Backfill Orders run.** Once a handful of
+3. **Old Ended items may need the new Backfill Orders run.** Once a handful of
    items land in Ended from the normal 20-min sync, consider running Backfill
    Orders (e.g. 180–365 days) once to catch any of them that actually did sell
    on eBay a while back and just missed the normal 3-day order window.
-3. **HEIC photos don't generate thumbnails (found 2026-09-01, not fixed —
+4. **HEIC photos don't generate thumbnails (found 2026-09-01, not fixed —
    explicitly deferred by the user).** An iPhone photo saved as `.heic`
    fails in `sharp`'s decoder: `heif: Decoder plugin generated an error:
    Unspecified (7.0)` / `source: bad seek to ...`. Shows as a broken-image
@@ -114,31 +164,33 @@ sent to eBay):
    is always a broadly-compatible format — thumbnails, browser display, and
    eBay publish would all just work automatically off of that, no separate
    fix needed for each.
-4. **Phase 8 DNS cutover** — the only remaining piece of the Hostinger→Render
+5. **Phase 8 DNS cutover** — the only remaining piece of the Hostinger→Render
    migration (full history below). Still blocked on one decision: user was
    considering a new, catchier domain/brand instead of
    `ops.rebootytreasures.com`. Confirm which domain before executing — don't
    assume the old one by default.
-5. **Category-specific Item Specifics beyond Condition** — confirmed live via
+6. **Category-specific Item Specifics beyond Condition** — confirmed live via
    `get_item_aspects_for_category` that Books need Author/Book Title/
    Language, DVDs need Movie/TV Title/Format, Vinyl needs Artist, Clothing
    needs Style/Department/Dress Length, none of which have fields today.
    Deliberately deferred — needs flexible per-SKU field storage (a key/value
    table), not more fixed columns. Scoped as its own session.
-6. **Items not found during a physical inventory check — noted, deliberately not
+7. **Items not found during a physical inventory check — noted, deliberately not
    built (user, 2026-09-20).** The Inventory Check sheet has a "Found?" column, but
    re-importing only reads SKU + Location; a not-found mark does nothing in the app.
    User's call: no action for now, because items are spread across many bins and are
    checked one bin at a time, so some simply take longer to find — an early "missing"
    flag would be mostly false alarms. If picked up later, options discussed were a
    review bucket (like `Ended`) or a note on the item; ask before building either.
-7. **A failed photo save can crash the whole app process (found 2026-09-20, not
+8. **A failed photo save can crash the whole app process (found 2026-09-20, not
    fixed — offered, user hasn't decided).** Express 4 doesn't catch errors from
    `async` route handlers, and `POST /intake` / `POST /inventory/:sku/photos`
    (`await storage.putObject(...)`) have no try/catch, so an R2 failure (seen locally
    as a TLS error; in production it'd be an R2 outage/timeout) is an unhandled
    rejection that exits the process — Render restarts it, but the user gets a dropped
-   request instead of an error message. Fix if wanted: wrap those handlers (or add a
+   request instead of an error message. (Update 2026-09-21: `server.js` now has
+   process-level handlers, so the process should no longer exit. The request is
+   still left hanging with no error page, so the per-route fix is still worth doing.) Fix if wanted: wrap those handlers (or add a
    small async-error wrapper) so it renders an error page instead.
    Also worth knowing: the local `.env` points `R2_BUCKET` at the **staging** bucket, so
    a normal local run writes photos to real cloud storage. To test uploads locally
@@ -146,6 +198,20 @@ sent to eBay):
    storage, and no eBay auto-sync mutating the dev DB).
 
 ## Key non-obvious findings worth remembering
+
+- **eBay rewrites variation SKUs.** Leaving the listing-level SKU blank doesn't stop it:
+  eBay's variation editor turns a typed `RT-1462` into `RT-1462_Bl`, and colliding
+  prefixes get a counter (`_Ye`, then `_Ye2`). Any new code that matches eBay SKUs to
+  ours must go through `ebaySuffixedSkuBase()` (or keep its rules), not an exact
+  string match.
+- **Cowork sessions can commit but not push this repo.** The Cowork desktop VM has no
+  GitHub credentials, so `git push` fails ("could not read Username"). The user
+  pushes from their own terminal or GitHub Desktop. That VM also blocks deletes by
+  default, which can leave `.git/*.lock` and `tmp_obj_*` files behind mid-commit;
+  clear them (with delete permission) before the next git command. Separately, about
+  50 files always show as modified in `git status` on that machine. Those are CRLF
+  line-ending noise only (`git diff --ignore-cr-at-eol` is empty), so never
+  `git add -A` blindly.
 
 - **eBay's `SchedulingInfo`/`StartTime` "account restriction" finding from
   earlier sessions was wrong — it was a code bug, not an eBay account
@@ -174,7 +240,7 @@ sent to eBay):
   `GET /order` (read), `AddFixedPriceItem` (create new), `ReviseFixedPriceItem`
   (used today only to set the Custom Label/SKU field, nothing else).
 - **HEIC photos aren't safe to assume will "just work"** anywhere in this
-  app (see open item 3) — sharp's HEIF decoder has already failed on at
+  app (see open item 4) — sharp's HEIF decoder has already failed on at
   least one real user photo, and HEIC has no broad browser/eBay support
   regardless. Any future feature touching photos should assume HEIC needs
   conversion, not pass-through.
