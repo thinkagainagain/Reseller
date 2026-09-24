@@ -23,6 +23,7 @@
             <th>Photo</th>
             <th>SKU</th>
             <th>Item</th>
+            <th>Qty</th>
             <th>Bin/Loc</th>
             <th>List Price</th>
             <th>Acquired</th>
@@ -37,7 +38,11 @@
                 <% } %>
               </td>
               <td><%= item.sku %></td>
-              <td><%= item.item_name || '—' %></td>
+              <td>
+                <%= item.item_name || '—' %>
+                <% if (item.variant_label) { %><div class="stat-sub"><%= item.variant_label %></div><% } %>
+              </td>
+              <td><%= item.quantity ?? 1 %></td>
               <td><%= item.bin_location || '—' %></td>
               <td><%= item.list_price ? '$' + Number(item.list_price).toFixed(2) : '—' %></td>
               <td><%= item.date_acquired || '—' %></td>

@@ -122,19 +122,10 @@ sent to eBay):
 
 ## Open items to pick up next
 
-1. **Finish and verify the RT-1465 / RT-1466 cleanup in production (started
-   2026-09-24).** The fix is pushed to `main`. Remaining steps, in this order:
-   (a) confirm the Render production deploy of `99da463` (or later) is Live;
-   (b) run Sync on `/sync`;
-   (c) confirm **RT-1465** now has the listing's `ebay_item_id`, its `variant_label`
-   (a "Ye..." color), `multi_unit = true`, eBay's remaining quantity, status Active
-   (no longer Waiting to List), and an empty `bin_location`;
-   (d) confirm RT-1462 to RT-1464 still look right;
-   (e) **only then delete RT-1466** from its edit page (`POST /inventory/:sku/delete`).
-   Deleting it earlier is pointless because the 20-min auto-sync recreates it as
-   RT-1467. It also won't clear on its own: the Ended sweep skips any row whose Item
-   ID was seen this sync. The RT-1466 number is burned, so the next Intake SKU is
-   RT-1467. That's fine. If RT-1465 still doesn't match after the sync, get the
+1. ~~Finish and verify the RT-1465 / RT-1466 cleanup in production.~~ **Done
+   2026-09-24.** RT-1466 deleted and not recreated by later syncs; RT-1465 confirmed
+   Active with its label and eBay's count. RT-1466 is a burned number (next Intake
+   SKU continues past it). If a variation SKU ever fails to match again, get the
    variation's exact label from eBay and check it against `ebaySuffixedSkuBase`.
 2. **Watch `/inventory/ended` over the next several syncs.** This is brand
    new logic against real production data — worth checking that what lands

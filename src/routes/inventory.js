@@ -81,8 +81,16 @@ router.post('/inventory/:sku/edit', async (req, res) => {
     date_acquired, notes, description, brand, item_size, color,
     year_manufactured, country_of_origin, ebay_category_id, ebay_category_name,
     ebay_condition_id, weight_lbs, weight_oz, package_length, package_width,
-    package_height, item_type, return_to,
+    package_height, item_type, return_to, quantity, variant_label,
   } = req.body;
+
+  // The form leaves Quantity out entirely once eBay owns the count (a
+  // multi-unit SKU already listed) -- only apply it when it was sent. Going
+  // above 1 makes the row multi-unit so a sale doesn't mark it Sold early.
+  const parsedQty = Number.parseInt(quantity, 10);
+  const unitFields = Number.isInteger(parsedQty) && parsedQty >= 1
+    ? { quantity: Math.min(parsedQty, 999), ...(parsedQty > 1 ? { multi_unit: true } : {}) }
+    : {};
 
   await db('inventory')
     .where({ sku })
@@ -114,6 +122,8 @@ router.post('/inventory/:sku/edit', async (req, res) => {
       package_width: package_width === '' ? null : Number(package_width),
       package_height: package_height === '' ? null : Number(package_height),
       item_type: item_type?.trim() || null,
+      variant_label: variant_label?.trim().slice(0, 60) || null,
+      ...unitFields,
       updated_at: db.fn.now(),
     });
 
