@@ -128,6 +128,23 @@ test('ebaySuffixedSkuBase strips eBay\'s "_Bl" suffix when it matches the variat
   assert.equal(ebaySuffixedSkuBase('Shelf3_Bl', 'Blue'), null);
 });
 
+test('ebaySuffixedSkuBase ignores the counter eBay adds when two labels share their first letters', () => {
+  assert.equal(ebaySuffixedSkuBase('RT-1465_Ye2', 'Yellow Swirl'), 'RT-1465');
+  assert.equal(ebaySuffixedSkuBase('RT-1465_Ye2', 'Pink'), null);
+});
+
+test('flattenListing maps a counter-suffixed variation SKU back to its Intake SKU', () => {
+  const entries = flattenListing({
+    itemId: '9', price: 10, variations: [
+      { sku: 'RT-1462_Bl', label: 'Blue', quantityAvailable: 3 },
+      { sku: 'RT-1463_Ye', label: 'Yellow', quantityAvailable: 3 },
+      { sku: 'RT-1464_Pi', label: 'Pink', quantityAvailable: 3 },
+      { sku: 'RT-1465_Ye2', label: 'Yellow Swirl', quantityAvailable: 3 },
+    ],
+  });
+  assert.deepEqual(entries.map((e) => e.fallbackSku), ['RT-1462', 'RT-1463', 'RT-1464', 'RT-1465']);
+});
+
 test('flattenListing maps eBay-suffixed variation SKUs back to the Intake SKUs', () => {
   const entries = flattenListing({
     itemId: '9', price: 10, variations: [
