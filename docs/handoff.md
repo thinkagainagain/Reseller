@@ -10,8 +10,8 @@ resuming cleanly.
 (no custom domain yet — see Phase 8 below), deployed from `main`.
 As of 2026-09-24, `main` and `staging` are in sync and pushed, and everything
 below is live, including multi-unit intake, the variation-SKU matching fixes, and
-Qty on the Inventory/edit pages. The first two real multi-variation listings are
-syncing correctly (RT-1465 cleanup done).
+Qty on the Inventory/edit pages. Three real multi-variation listings are syncing
+correctly (RT-1465 and RT-1657–1662 cleanups done; see below).
 
 The auto-sync-every-20-min feature (`scheduledSync.js`), previously held back from
 production with no timeline set, **is now live** — promoted 2026-09-17.
@@ -133,6 +133,26 @@ sent to eBay):
   `_Xx`, which sync handles. Entering one prefix with all variations selected gives
   every variation the same base, and `flattenListing` deliberately refuses to guess
   (would create duplicate rows). Leave the listing-level SKU field blank.
+- **Variation SKU suffix is now ignored entirely** (`fd6d977`, then simplified in
+  `58c8c51`, live via `5d44c88` 2026-09-24). A year-variation listing (2020–2025,
+  Intake SKUs RT-1657 to RT-1662) came back from eBay as `RT-1660_20`, `RT-1659_202`,
+  `RT-1662_203`, `RT-1657_204`, `RT-1661_205`, `RT-1658_206`: label start "20" plus a
+  counter, so the "strip trailing digits" rule from `e165f99` stripped everything and
+  4 of 6 failed to match. At the user's suggestion, `ebaySuffixedSkuBase()` now just
+  takes the part before the last underscore if it looks like our SKU. The label check
+  never protected anything (it compared eBay's suffix to eBay's own label). Kept: base
+  must be unique within the listing, and order sync accepts a base only when already
+  tied to the same Item ID. Cleanup done by the user: after the fix synced, RT-1657 to
+  RT-1662 went Active, and the 4 duplicate rows (eBay SKU sitting in `bin_location`)
+  were deleted by hand.
+- **Sync can't overlap itself anymore** (`b18b6b1`). The same incident surfaced as
+  `duplicate key value violates unique constraint "inventory_pkey"` on `/sync`: the
+  Sync button ran while the 20-min scheduled sync was mid-run. Both read the same max
+  SKU and inserted the same new SKUs. `runSync()` now shares one in-flight run (a
+  second call gets the first call's result), and `backfillOrders()` is refused while
+  any sync runs (and vice versa). This works within one process; it would not cover
+  two Render instances, which production doesn't run today. Couldn't reproduce the
+  original race locally because SQLite serializes writes; Postgres doesn't.
 
 ## Open items to pick up next
 
@@ -221,9 +241,9 @@ sent to eBay):
 
 - **eBay rewrites variation SKUs.** Leaving the listing-level SKU blank doesn't stop it:
   eBay's variation editor turns a typed `RT-1462` into `RT-1462_Bl`, and colliding
-  prefixes get a counter (`_Ye`, then `_Ye2`). Any new code that matches eBay SKUs to
-  ours must go through `ebaySuffixedSkuBase()` (or keep its rules), not an exact
-  string match.
+  prefixes get a counter (`_Ye`, then `_Ye2`; for years, `_20`, `_202`, `_203`...).
+  Don't try to interpret the suffix. Any new code that matches eBay SKUs to ours must
+  go through `ebaySuffixedSkuBase()` (or keep its rules), not an exact string match.
 - **Cowork sessions can commit but not push this repo.** The Cowork desktop VM has no
   GitHub credentials, so `git push` fails ("could not read Username"). The user
   pushes from their own terminal or GitHub Desktop. That VM also blocks deletes by
