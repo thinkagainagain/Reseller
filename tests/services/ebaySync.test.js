@@ -164,3 +164,30 @@ test('flattenListing refuses to guess when two variations lead back to the same 
   });
   assert.deepEqual(entries.map((e) => e.fallbackSku), [null, null]);
 });
+
+test('ebaySuffixedSkuBase handles labels starting with digits plus eBay\'s counter (real SKUs, labels guessed)', () => {
+  const real = [
+    ['RT-1660_20', '2019 edition'],
+    ['RT-1659_202', '2020 edition'],
+    ['RT-1662_203', '2021 edition'],
+    ['RT-1657_204', '2022 edition'],
+    ['RT-1661_205', '2023 edition'],
+    ['RT-1658_206', '2024 edition'],
+  ];
+  for (const [sku, label] of real) {
+    assert.equal(ebaySuffixedSkuBase(sku, label), sku.split('_')[0], sku);
+  }
+  // The counter is digits only -- a letter after the label's start still fails.
+  assert.equal(ebaySuffixedSkuBase('RT-1660_20x', '2019 edition'), null);
+  assert.equal(ebaySuffixedSkuBase('RT-1660_30', '2019 edition'), null);
+});
+
+test('flattenListing maps all six real "_20…" variation SKUs to distinct Intake SKUs', () => {
+  const entries = flattenListing({
+    itemId: '9', price: 10, variations: [
+      ['RT-1660_20', '2019'], ['RT-1659_202', '2020'], ['RT-1662_203', '2021'],
+      ['RT-1657_204', '2022'], ['RT-1661_205', '2023'], ['RT-1658_206', '2024'],
+    ].map(([sku, label]) => ({ sku, label, quantityAvailable: 1 })),
+  });
+  assert.deepEqual(entries.map((e) => e.fallbackSku), ['RT-1660', 'RT-1659', 'RT-1662', 'RT-1657', 'RT-1661', 'RT-1658']);
+});

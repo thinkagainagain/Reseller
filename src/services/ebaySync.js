@@ -102,16 +102,30 @@ function flattenListing(listing) {
 
 // "RT-1642_Bl" -> "RT-1642" when the base looks like one of our SKUs and,
 // if a label is given, the suffix matches its start ("Bl" of "Blue").
-// When two variations' labels start with the same letters, eBay adds a
-// counter to keep them unique ("RT-1463_Ye", then "RT-1465_Ye2"), so any
-// trailing digits are ignored for the label check. Anything else -> null.
+// When two variations' labels start with the same characters, eBay adds a
+// counter to keep them unique ("RT-1463_Ye", then "RT-1465_Ye2"). The label
+// itself can start with digits too -- seen live: labels starting "20" gave
+// "_20", "_202", "_203" ... "_206" -- so the counter can't be found by just
+// stripping trailing digits. Instead the suffix passes if SOME leading part
+// of it is the start of the label and whatever follows is only digits.
+// Anything else -> null.
+function suffixMatchesLabel(suffix, label) {
+  const lowerSuffix = suffix.toLowerCase();
+  const lowerLabel = String(label || '').toLowerCase();
+  for (let split = lowerSuffix.length; split >= 1; split -= 1) {
+    const head = lowerSuffix.slice(0, split);
+    const counter = lowerSuffix.slice(split);
+    if (lowerLabel.startsWith(head) && /^\d*$/.test(counter)) return true;
+  }
+  return false;
+}
+
 function ebaySuffixedSkuBase(sku, label) {
   const match = /^(.+)_([^_]+)$/.exec(sku || '');
   if (!match) return null;
   const [, base, suffix] = match;
   if (!looksLikeOwnSku(base)) return null;
-  const suffixLetters = suffix.replace(/\d+$/, '') || suffix;
-  if (label !== undefined && !String(label || '').toLowerCase().startsWith(suffixLetters.toLowerCase())) return null;
+  if (label !== undefined && !suffixMatchesLabel(suffix, label)) return null;
   return base;
 }
 
