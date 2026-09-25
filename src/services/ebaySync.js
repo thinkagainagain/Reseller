@@ -517,16 +517,42 @@ async function syncSoldOrders(lookbackDays = ORDER_LOOKBACK_DAYS) {
   return { totalOrders: orders.length, newSales, updatedSales, backfilledInventory, markedShipped };
 }
 
-async function runSync() {
-  const listingsResult = await syncActiveListings();
-  const ordersResult = await syncSoldOrders();
-  return { listings: listingsResult, orders: ordersResult };
+// Only one sync may touch the DB at a time. Two overlapping runs (the Sync
+// button pressed while the 20-min scheduled sync is mid-run, confirmed in
+// production) each read the same highest SKU number, both try to insert the
+// same new SKUs, and the second one dies on the primary key. A second full
+// sync request just shares the one already in flight -- same result, no
+// double work. The wide order backfill can't share, so it's refused instead.
+let inFlight = null; // { kind: 'full' | 'backfill', promise }
+
+function runExclusive(kind, work) {
+  const promise = work().finally(() => {
+    inFlight = null;
+  });
+  inFlight = { kind, promise };
+  return promise;
+}
+
+function runSync() {
+  if (inFlight?.kind === 'full') return inFlight.promise;
+  if (inFlight) return Promise.reject(new Error('An order backfill is running right now -- try Sync again in a minute.'));
+  return runExclusive('full', async () => {
+    const listingsResult = await syncActiveListings();
+    const ordersResult = await syncSoldOrders();
+    return { listings: listingsResult, orders: ordersResult };
+  });
+}
+
+function backfillOrders(lookbackDays) {
+  if (inFlight) return Promise.reject(new Error('A sync is running right now -- try the backfill again in a minute.'));
+  return runExclusive('backfill', () => syncSoldOrders(lookbackDays));
 }
 
 module.exports = {
   syncActiveListings,
   syncSoldOrders,
   runSync,
+  backfillOrders,
   looksLikeOwnSku,
   resolveActiveListingStatus,
   pickSkuForNewListing,
