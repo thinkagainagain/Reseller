@@ -75,11 +75,11 @@ function flattenListing(listing) {
   // eBay's variation editor rewrites a typed-in SKU like "RT-1642" into
   // "RT-1642_Bl" (underscore + first letters of the variation's value),
   // even with the listing-level SKU blank -- confirmed on a real draft. The
-  // part before the underscore is the SKU from Intake. Only trusted when
-  // the suffix really is the start of this variation's own label and no
-  // other variation in the listing leads back to the same SKU, so a sale
-  // can never land on the wrong color.
-  const bases = listing.variations.map((variation) => ebaySuffixedSkuBase(variation.sku, variation.label));
+  // part before the underscore is the SKU from Intake. Only trusted when no
+  // other variation in the listing leads back to the same SKU (e.g. one
+  // prefix entered with every variation selected), so a sale can never land
+  // on the wrong color.
+  const bases = listing.variations.map((variation) => ebaySuffixedSkuBase(variation.sku));
   const claimed = new Set(listing.variations.map((variation) => variation.sku).filter(Boolean));
   const baseCounts = new Map();
   for (const base of bases) {
@@ -100,19 +100,21 @@ function flattenListing(listing) {
   });
 }
 
-// "RT-1642_Bl" -> "RT-1642" when the base looks like one of our SKUs and,
-// if a label is given, the suffix matches its start ("Bl" of "Blue").
-// When two variations' labels start with the same letters, eBay adds a
-// counter to keep them unique ("RT-1463_Ye", then "RT-1465_Ye2"), so any
-// trailing digits are ignored for the label check. Anything else -> null.
-function ebaySuffixedSkuBase(sku, label) {
-  const match = /^(.+)_([^_]+)$/.exec(sku || '');
+// "RT-1642_Bl" -> "RT-1642": the part before the last underscore, when it
+// looks like one of our SKUs. Anything else -> null.
+//
+// The suffix itself is deliberately ignored. eBay builds it from the start
+// of the variation's value plus a counter when those collide ("_Bl", "_Ye"
+// then "_Ye2", and for years 2020-2025: "_20", "_202" ... "_206"), and two
+// earlier attempts to check it against the label each broke on a real
+// listing. It also never protected anything: it only compared eBay's suffix
+// to eBay's own label. The real safeguards are the callers' -- the base must
+// be unique within the listing (flattenListing), and order sync only
+// accepts a base already tied to the same eBay Item ID.
+function ebaySuffixedSkuBase(sku) {
+  const match = /^(.+)_[^_]+$/.exec(sku || '');
   if (!match) return null;
-  const [, base, suffix] = match;
-  if (!looksLikeOwnSku(base)) return null;
-  const suffixLetters = suffix.replace(/\d+$/, '') || suffix;
-  if (label !== undefined && !String(label || '').toLowerCase().startsWith(suffixLetters.toLowerCase())) return null;
-  return base;
+  return looksLikeOwnSku(match[1]) ? match[1] : null;
 }
 
 // Joins eBay's variation aspects ([{ name: 'Color', value: 'Red' }]) the same
@@ -517,16 +519,42 @@ async function syncSoldOrders(lookbackDays = ORDER_LOOKBACK_DAYS) {
   return { totalOrders: orders.length, newSales, updatedSales, backfilledInventory, markedShipped };
 }
 
-async function runSync() {
-  const listingsResult = await syncActiveListings();
-  const ordersResult = await syncSoldOrders();
-  return { listings: listingsResult, orders: ordersResult };
+// Only one sync may touch the DB at a time. Two overlapping runs (the Sync
+// button pressed while the 20-min scheduled sync is mid-run, confirmed in
+// production) each read the same highest SKU number, both try to insert the
+// same new SKUs, and the second one dies on the primary key. A second full
+// sync request just shares the one already in flight -- same result, no
+// double work. The wide order backfill can't share, so it's refused instead.
+let inFlight = null; // { kind: 'full' | 'backfill', promise }
+
+function runExclusive(kind, work) {
+  const promise = work().finally(() => {
+    inFlight = null;
+  });
+  inFlight = { kind, promise };
+  return promise;
+}
+
+function runSync() {
+  if (inFlight?.kind === 'full') return inFlight.promise;
+  if (inFlight) return Promise.reject(new Error('An order backfill is running right now -- try Sync again in a minute.'));
+  return runExclusive('full', async () => {
+    const listingsResult = await syncActiveListings();
+    const ordersResult = await syncSoldOrders();
+    return { listings: listingsResult, orders: ordersResult };
+  });
+}
+
+function backfillOrders(lookbackDays) {
+  if (inFlight) return Promise.reject(new Error('A sync is running right now -- try the backfill again in a minute.'));
+  return runExclusive('backfill', () => syncSoldOrders(lookbackDays));
 }
 
 module.exports = {
   syncActiveListings,
   syncSoldOrders,
   runSync,
+  backfillOrders,
   looksLikeOwnSku,
   resolveActiveListingStatus,
   pickSkuForNewListing,

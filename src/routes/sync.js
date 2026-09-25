@@ -2,7 +2,7 @@ const express = require('express');
 const os = require('os');
 const { execFile } = require('child_process');
 const config = require('../config');
-const { runSync, syncSoldOrders } = require('../services/ebaySync');
+const { runSync, backfillOrders } = require('../services/ebaySync');
 
 // Explicit callback->Promise wrapper rather than util.promisify(execFile) --
 // promisify relies on Node's internal custom-promisify hook for child_process
@@ -46,7 +46,7 @@ router.post('/sync/run', async (req, res) => {
 router.post('/sync/backfill-orders', async (req, res) => {
   const days = Math.min(Math.max(Number(req.body.days) || 90, 1), 730);
   try {
-    const backfillResult = await syncSoldOrders(days);
+    const backfillResult = await backfillOrders(days);
     res.render('sync/sync', { result: null, backfillResult: { ...backfillResult, days }, error: null });
   } catch (err) {
     console.error('Order backfill failed:', err);
