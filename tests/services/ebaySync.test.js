@@ -121,16 +121,17 @@ test('statusAfterSale marks a multi-unit SKU Sold once its last unit is gone', (
 
 const { ebaySuffixedSkuBase } = require('../../src/services/ebaySync');
 
-test('ebaySuffixedSkuBase strips eBay\'s "_Bl" suffix when it matches the variation label', () => {
-  assert.equal(ebaySuffixedSkuBase('RT-1642_Bl', 'Blue'), 'RT-1642');
-  assert.equal(ebaySuffixedSkuBase('RT-1642_Bl', 'Red'), null);
-  assert.equal(ebaySuffixedSkuBase('RT-1642', 'Blue'), null);
-  assert.equal(ebaySuffixedSkuBase('Shelf3_Bl', 'Blue'), null);
+test('ebaySuffixedSkuBase takes the part before eBay\'s suffix, whatever the suffix is', () => {
+  assert.equal(ebaySuffixedSkuBase('RT-1642_Bl'), 'RT-1642');
+  assert.equal(ebaySuffixedSkuBase('RT-1465_Ye2'), 'RT-1465');
+  assert.equal(ebaySuffixedSkuBase('JS-0042_Lg'), 'JS-0042');
 });
 
-test('ebaySuffixedSkuBase ignores the counter eBay adds when two labels share their first letters', () => {
-  assert.equal(ebaySuffixedSkuBase('RT-1465_Ye2', 'Yellow Swirl'), 'RT-1465');
-  assert.equal(ebaySuffixedSkuBase('RT-1465_Ye2', 'Pink'), null);
+test('ebaySuffixedSkuBase rejects anything whose base isn\'t one of our SKUs', () => {
+  assert.equal(ebaySuffixedSkuBase('RT-1642'), null); // no suffix: exact match handles it
+  assert.equal(ebaySuffixedSkuBase('Shelf3_Bl'), null);
+  assert.equal(ebaySuffixedSkuBase('_Bl'), null);
+  assert.equal(ebaySuffixedSkuBase(null), null);
 });
 
 test('flattenListing maps a counter-suffixed variation SKU back to its Intake SKU', () => {
@@ -165,28 +166,17 @@ test('flattenListing refuses to guess when two variations lead back to the same 
   assert.deepEqual(entries.map((e) => e.fallbackSku), [null, null]);
 });
 
-test('ebaySuffixedSkuBase handles labels starting with digits plus eBay\'s counter (real SKUs, labels guessed)', () => {
-  const real = [
-    ['RT-1660_20', '2019 edition'],
-    ['RT-1659_202', '2020 edition'],
-    ['RT-1662_203', '2021 edition'],
-    ['RT-1657_204', '2022 edition'],
-    ['RT-1661_205', '2023 edition'],
-    ['RT-1658_206', '2024 edition'],
-  ];
-  for (const [sku, label] of real) {
-    assert.equal(ebaySuffixedSkuBase(sku, label), sku.split('_')[0], sku);
+test('ebaySuffixedSkuBase handles the real year-variation SKUs (_20, _202 ... _206)', () => {
+  for (const sku of ['RT-1660_20', 'RT-1659_202', 'RT-1662_203', 'RT-1657_204', 'RT-1661_205', 'RT-1658_206']) {
+    assert.equal(ebaySuffixedSkuBase(sku), sku.split('_')[0], sku);
   }
-  // The counter is digits only -- a letter after the label's start still fails.
-  assert.equal(ebaySuffixedSkuBase('RT-1660_20x', '2019 edition'), null);
-  assert.equal(ebaySuffixedSkuBase('RT-1660_30', '2019 edition'), null);
 });
 
 test('flattenListing maps all six real "_20…" variation SKUs to distinct Intake SKUs', () => {
   const entries = flattenListing({
     itemId: '9', price: 10, variations: [
-      ['RT-1660_20', '2019'], ['RT-1659_202', '2020'], ['RT-1662_203', '2021'],
-      ['RT-1657_204', '2022'], ['RT-1661_205', '2023'], ['RT-1658_206', '2024'],
+      ['RT-1660_20', '2020'], ['RT-1659_202', '2021'], ['RT-1662_203', '2022'],
+      ['RT-1657_204', '2023'], ['RT-1661_205', '2024'], ['RT-1658_206', '2025'],
     ].map(([sku, label]) => ({ sku, label, quantityAvailable: 1 })),
   });
   assert.deepEqual(entries.map((e) => e.fallbackSku), ['RT-1660', 'RT-1659', 'RT-1662', 'RT-1657', 'RT-1661', 'RT-1658']);

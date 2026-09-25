@@ -75,11 +75,11 @@ function flattenListing(listing) {
   // eBay's variation editor rewrites a typed-in SKU like "RT-1642" into
   // "RT-1642_Bl" (underscore + first letters of the variation's value),
   // even with the listing-level SKU blank -- confirmed on a real draft. The
-  // part before the underscore is the SKU from Intake. Only trusted when
-  // the suffix really is the start of this variation's own label and no
-  // other variation in the listing leads back to the same SKU, so a sale
-  // can never land on the wrong color.
-  const bases = listing.variations.map((variation) => ebaySuffixedSkuBase(variation.sku, variation.label));
+  // part before the underscore is the SKU from Intake. Only trusted when no
+  // other variation in the listing leads back to the same SKU (e.g. one
+  // prefix entered with every variation selected), so a sale can never land
+  // on the wrong color.
+  const bases = listing.variations.map((variation) => ebaySuffixedSkuBase(variation.sku));
   const claimed = new Set(listing.variations.map((variation) => variation.sku).filter(Boolean));
   const baseCounts = new Map();
   for (const base of bases) {
@@ -100,33 +100,21 @@ function flattenListing(listing) {
   });
 }
 
-// "RT-1642_Bl" -> "RT-1642" when the base looks like one of our SKUs and,
-// if a label is given, the suffix matches its start ("Bl" of "Blue").
-// When two variations' labels start with the same characters, eBay adds a
-// counter to keep them unique ("RT-1463_Ye", then "RT-1465_Ye2"). The label
-// itself can start with digits too -- seen live: labels starting "20" gave
-// "_20", "_202", "_203" ... "_206" -- so the counter can't be found by just
-// stripping trailing digits. Instead the suffix passes if SOME leading part
-// of it is the start of the label and whatever follows is only digits.
-// Anything else -> null.
-function suffixMatchesLabel(suffix, label) {
-  const lowerSuffix = suffix.toLowerCase();
-  const lowerLabel = String(label || '').toLowerCase();
-  for (let split = lowerSuffix.length; split >= 1; split -= 1) {
-    const head = lowerSuffix.slice(0, split);
-    const counter = lowerSuffix.slice(split);
-    if (lowerLabel.startsWith(head) && /^\d*$/.test(counter)) return true;
-  }
-  return false;
-}
-
-function ebaySuffixedSkuBase(sku, label) {
-  const match = /^(.+)_([^_]+)$/.exec(sku || '');
+// "RT-1642_Bl" -> "RT-1642": the part before the last underscore, when it
+// looks like one of our SKUs. Anything else -> null.
+//
+// The suffix itself is deliberately ignored. eBay builds it from the start
+// of the variation's value plus a counter when those collide ("_Bl", "_Ye"
+// then "_Ye2", and for years 2020-2025: "_20", "_202" ... "_206"), and two
+// earlier attempts to check it against the label each broke on a real
+// listing. It also never protected anything: it only compared eBay's suffix
+// to eBay's own label. The real safeguards are the callers' -- the base must
+// be unique within the listing (flattenListing), and order sync only
+// accepts a base already tied to the same eBay Item ID.
+function ebaySuffixedSkuBase(sku) {
+  const match = /^(.+)_[^_]+$/.exec(sku || '');
   if (!match) return null;
-  const [, base, suffix] = match;
-  if (!looksLikeOwnSku(base)) return null;
-  if (label !== undefined && !suffixMatchesLabel(suffix, label)) return null;
-  return base;
+  return looksLikeOwnSku(match[1]) ? match[1] : null;
 }
 
 // Joins eBay's variation aspects ([{ name: 'Color', value: 'Red' }]) the same
